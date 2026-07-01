@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand: #003876;
+  --brand-light: #0b4da2;
+  --focus-ring: #ffb703;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  color: #1a1a1a;
+  background-color: #f5f7fa;
+}
+
+/* WCAG AA: 모든 상호작용 요소에 명확한 포커스 표시 */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  background: #ffffff;
+  color: var(--brand);
+  padding: 0.75rem 1.25rem;
+  font-weight: 700;
+  border: 2px solid var(--brand);
+}
+
+.skip-link:focus {
+  left: 1rem;
+  top: 1rem;
+}

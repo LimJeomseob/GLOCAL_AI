@@ -1,0 +1,129 @@
+/**
+ * Supabase(Postgres) 테이블과 1:1로 대응하는 타입 정의 (PRD §7 참조)
+ */
+
+export type WorkshopLevel = "초급" | "중급" | "고급";
+
+export interface WorkshopSession {
+  time_label: string; // 예: "13:00~15:00"
+  topic: string; // 강의주제
+  content: string; // 주요 교육내용
+}
+
+/** workshops 테이블 1행 = 회차(1~5차) 1개. 2세션 상세는 sessions(jsonb)에 보관 (PRD §13.2) */
+export interface Workshop {
+  id: string;
+  round: number; // 1~5
+  topic: string; // 회차 대표 주제(요약)
+  instructor: string;
+  location: string;
+  capacity: number;
+  start_at: string; // timestamptz
+  end_at: string; // timestamptz
+  deadline: string; // timestamptz = start_at - 2일
+  level: WorkshopLevel;
+  target: string;
+  sessions: WorkshopSession[]; // 회차별 세부 강의(2세션)
+  notes: string; // 협조사항(§13.3)
+  created_at: string;
+}
+
+export type ApplicationStatus = "신청완료" | "대기" | "취소" | "이수";
+
+/** ApplicationStatus의 전체 값 목록(단일 출처). 상태 드롭다운/타입가드 등에서 재사용한다. */
+export const APPLICATION_STATUSES: ApplicationStatus[] = ["신청완료", "대기", "취소", "이수"];
+
+export function isApplicationStatus(value: string): value is ApplicationStatus {
+  return (APPLICATION_STATUSES as string[]).includes(value);
+}
+
+export interface Application {
+  id: string;
+  workshop_id: string;
+  name: string;
+  affiliation: string;
+  id_number: string;
+  phone: string;
+  email: string;
+  consent: boolean;
+  status: ApplicationStatus;
+  cert_issued: boolean;
+  created_by_admin: boolean;
+  created_at: string;
+}
+
+/** applications + workshops 조인 결과(관리자 테이블, 조회 결과 등에서 사용) */
+export interface ApplicationWithWorkshop extends Application {
+  workshop: Pick<
+    Workshop,
+    "id" | "round" | "topic" | "start_at" | "end_at" | "location"
+  >;
+}
+
+export interface SurveyResponse {
+  id: string;
+  workshop: string;
+  awareness_path: string;
+  q1: number;
+  q2: number;
+  q3: number;
+  q4: number;
+  q5: number;
+  q6: string;
+  submitted_at: string;
+}
+
+export interface Certificate {
+  id: string;
+  application_id: string;
+  cert_no: string;
+  issuer: string;
+  issued_at: string;
+  reissue_count: number;
+  pdf_path: string;
+}
+
+/** POST supabase.functions.invoke("lookup") 응답의 각 항목 (Edge Function과 동일한 shape 유지) */
+export interface LookupResultItem {
+  applicationId: string;
+  round: number;
+  topic: string;
+  startAt: string;
+  endAt: string;
+  location: string;
+  status: string;
+  certNo: string | null;
+  certDownloadUrl: string | null;
+}
+
+export type AdminRole = "admin" | "superadmin";
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  role: AdminRole;
+}
+
+export type KakaoTemplateType = "1" | "2" | "3";
+export type KakaoNotificationStatus = "대기" | "성공" | "실패";
+
+export interface KakaoNotification {
+  id: string;
+  application_id: string;
+  recipient: string;
+  template_type: KakaoTemplateType;
+  sent_at: string | null;
+  status: KakaoNotificationStatus;
+  response_code: string | null;
+  retry_count: number;
+}
+
+export interface KakaoAutoSendSettings {
+  id: string;
+  enabled: boolean;
+  template_1_enabled: boolean;
+  template_2_enabled: boolean;
+  template_3_enabled: boolean;
+  schedule_days_before: number; // (c) D-N 예약발송 기준일
+  updated_at: string;
+}
