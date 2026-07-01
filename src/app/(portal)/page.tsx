@@ -1,21 +1,12 @@
 import type { Metadata } from "next";
-import {
-  APPLICATION_OPEN_AT,
-  PROGRAM_FULL_TITLE,
-  PROGRAM_NAME,
-  TOTAL_CAPACITY,
-  WORKSHOP_SEEDS,
-} from "@/lib/constants";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { APPLICATION_OPEN_AT, PROGRAM_NAME, WORKSHOP_SEEDS } from "@/lib/constants";
+import { formatDateTime } from "@/lib/format";
 import { InstructorCardGrid } from "@/components/InstructorCard";
 import { ScheduleTable } from "@/components/ScheduleTable";
 
 export const metadata: Metadata = {
   title: `소개 | ${PROGRAM_NAME}`,
 };
-
-const OPERATION_START = "2026-07-22T00:00:00+09:00";
-const OPERATION_END = "2026-08-07T00:00:00+09:00";
 
 const CAPABILITIES = [
   {
@@ -51,7 +42,7 @@ export default function PortalIntroPage() {
           경상국립대학교 글로컬대학30 · 2026학년도 「모두의 AI를 위한 7월 AI활용 특강」
         </p>
         <h1 id="hero-heading" className="mt-2 text-2xl font-extrabold text-brand sm:text-3xl">
-          {PROGRAM_FULL_TITLE}
+          {PROGRAM_NAME}
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-sm text-slate-600 sm:text-base">
           생성형 AI를 활용해 업무 자동화, 문서·데이터 처리, 프롬프트 설계 역량을 키우는 실무
@@ -69,18 +60,6 @@ export default function PortalIntroPage() {
             </dd>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
-            <dt className="text-xs font-semibold text-slate-500">운영기간</dt>
-            <dd className="mt-1 text-base font-bold text-slate-900">
-              {formatDate(OPERATION_START)} ~ {formatDate(OPERATION_END)}
-            </dd>
-            <dd className="mt-1 text-sm text-slate-500">총 5개 회차 순차 운영</dd>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
-            <dt className="text-xs font-semibold text-slate-500">총 모집인원</dt>
-            <dd className="mt-1 text-base font-bold text-slate-900">{TOTAL_CAPACITY}명</dd>
-            <dd className="mt-1 text-sm text-slate-500">회차별 정원은 일정표를 참고하세요</dd>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
             <dt className="text-xs font-semibold text-slate-500">신청 대상</dt>
             <dd className="mt-1 text-base font-bold text-slate-900">
               교직원 · 재학생 · 지역민
@@ -95,6 +74,16 @@ export default function PortalIntroPage() {
                   {loc}
                 </span>
               ))}
+            </dd>
+            <dd className="mt-2 text-sm">
+              <a
+                href="https://naver.me/5chMgpBo"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="font-semibold text-accent underline underline-offset-2"
+              >
+                네이버 지도에서 위치 보기
+              </a>
             </dd>
           </div>
         </dl>
