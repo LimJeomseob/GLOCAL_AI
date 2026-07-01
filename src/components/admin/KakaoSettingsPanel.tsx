@@ -104,15 +104,27 @@ export function KakaoSettingsPanel({
     setSettings(nextSettings);
     try {
       const supabase = createSupabaseBrowserClient();
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from(TABLES.KAKAO_SEND_SETTINGS)
         .update(patch)
-        .eq("id", settings.id);
+        .eq("id", settings.id)
+        .select("*")
+        .maybeSingle<KakaoAutoSendSettings>();
       if (error) {
         setMessage({ type: "error", text: error.message });
         setSettings(settings);
         return;
       }
+      if (!data) {
+        // RLS가 UPDATE를 0건으로 조용히 필터링한 경우(에러 없이 반환행 0개) — 저장 실패로 처리
+        setMessage({
+          type: "error",
+          text: "설정이 저장되지 않았습니다. 관리자 권한을 확인한 뒤 다시 시도해 주세요.",
+        });
+        setSettings(settings);
+        return;
+      }
+      setSettings(data);
       setMessage({ type: "success", text: "설정이 저장되었습니다." });
     } catch {
       setMessage({ type: "error", text: "네트워크 오류가 발생했습니다." });

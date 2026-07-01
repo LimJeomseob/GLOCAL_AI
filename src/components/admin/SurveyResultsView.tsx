@@ -56,7 +56,7 @@ export function SurveyResultsView({
 }: {
   initialResponses: SurveyResponse[];
 }) {
-  const [responses] = useState<SurveyResponse[]>(initialResponses);
+  const responses = initialResponses;
 
   const total = responses.length;
 

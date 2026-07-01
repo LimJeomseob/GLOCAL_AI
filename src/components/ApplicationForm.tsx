@@ -95,7 +95,7 @@ export function ApplicationForm({ workshopOptions }: { workshopOptions: Workshop
       id_number: parsed.data.idNumber,
       phone: parsed.data.phone,
       email: parsed.data.email,
-      consent: true,
+      consent: parsed.data.consent,
     });
 
     setSubmitting(false);

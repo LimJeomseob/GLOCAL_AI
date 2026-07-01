@@ -25,6 +25,13 @@ export default async function AdminApplicantsPage() {
         .returns<KakaoNotification[]>(),
     ]);
 
+  // PostgREST가 to-one 임베드(workshop:workshops(...))를 스키마 캐시 상태에 따라
+  // 배열로 반환하는 경우가 있어, 클라이언트 컴포넌트들이 항상 객체 형태를 받도록 여기서 정규화한다.
+  const normalizedApplications: ApplicationWithWorkshop[] = (applications ?? []).map((row) => ({
+    ...row,
+    workshop: Array.isArray(row.workshop) ? row.workshop[0] : row.workshop,
+  }));
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -37,10 +44,10 @@ export default async function AdminApplicantsPage() {
       <KakaoSettingsPanel
         initialSettings={kakaoSettings ?? null}
         initialNotifications={kakaoNotifications ?? []}
-        applications={applications ?? []}
+        applications={normalizedApplications}
       />
 
-      <ApplicantsTable initialApplications={applications ?? []} />
+      <ApplicantsTable initialApplications={normalizedApplications} />
     </div>
   );
 }

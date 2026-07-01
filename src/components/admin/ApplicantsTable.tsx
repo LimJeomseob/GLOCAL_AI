@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TABLES } from "@/lib/db-tables";
@@ -9,9 +10,9 @@ import { formatDateTime, formatDateRange } from "@/lib/format";
 import { exportRowsAsCsv } from "@/lib/csv";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import type { ApplicationStatus, ApplicationWithWorkshop } from "@/lib/types";
+import { APPLICATION_STATUSES, type ApplicationStatus, type ApplicationWithWorkshop } from "@/lib/types";
 
-const STATUS_OPTIONS: ApplicationStatus[] = ["신청완료", "대기", "취소", "이수"];
+const STATUS_OPTIONS = APPLICATION_STATUSES;
 
 interface RowMessage {
   type: "success" | "error";
@@ -36,6 +37,7 @@ export function ApplicantsTable({
 }: {
   initialApplications: ApplicationWithWorkshop[];
 }) {
+  const router = useRouter();
   const [applications, setApplications] = useState<ApplicationWithWorkshop[]>(initialApplications);
   const [roundFilter, setRoundFilter] = useState<string>("전체");
   const [statusFilter, setStatusFilter] = useState<string>("전체");
@@ -86,6 +88,7 @@ export function ApplicantsTable({
       }
       setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
       setRowMessage(id, { type: "success", text: `상태가 '${status}'(으)로 변경되었습니다.` });
+      router.refresh();
     } finally {
       setRowLoading((prev) => ({ ...prev, [id]: false }));
     }
@@ -98,6 +101,9 @@ export function ApplicantsTable({
       body: JSON.stringify({ applicationIds: ids }),
     });
     const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(json?.error ?? `수료증 발급 요청이 실패했습니다. (${res.status})`);
+    }
     const results: { applicationId: string; success: boolean; certNo?: string; error?: string }[] =
       json?.results ?? [];
     return results;
@@ -121,11 +127,15 @@ export function ApplicantsTable({
           type: "success",
           text: `수료증이 발급되었습니다. (번호: ${result.certNo ?? "-"})`,
         });
+        router.refresh();
       } else {
         setRowMessage(id, { type: "error", text: result.error ?? "수료증 발급에 실패했습니다." });
       }
-    } catch {
-      setRowMessage(id, { type: "error", text: "네트워크 오류가 발생했습니다." });
+    } catch (err) {
+      setRowMessage(id, {
+        type: "error",
+        text: err instanceof Error ? err.message : "네트워크 오류가 발생했습니다.",
+      });
     } finally {
       setRowLoading((prev) => ({ ...prev, [id]: false }));
     }
@@ -189,8 +199,12 @@ export function ApplicantsTable({
         type: failCount > 0 ? "error" : "success",
         text: parts.join(", ") + "되었습니다.",
       });
-    } catch {
-      setBulkMessage({ type: "error", text: "네트워크 오류가 발생했습니다." });
+      router.refresh();
+    } catch (err) {
+      setBulkMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "네트워크 오류가 발생했습니다.",
+      });
     } finally {
       setBulkLoading(false);
     }

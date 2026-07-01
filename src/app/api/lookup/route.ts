@@ -72,7 +72,8 @@ export async function POST(request: Request) {
       if (row.status === "이수" && cert?.pdf_path) {
         try {
           certDownloadUrl = await getSignedCertificateUrl(supabase, cert.pdf_path);
-        } catch {
+        } catch (err) {
+          console.error(`[lookup] signed URL 생성 실패 (application_id=${row.id}):`, err);
           certDownloadUrl = null;
         }
       }

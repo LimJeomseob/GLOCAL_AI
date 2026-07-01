@@ -6,7 +6,7 @@ import { FormField, inputBaseClass } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatDateRange } from "@/lib/format";
-import type { ApplicationStatus } from "@/lib/types";
+import { isApplicationStatus } from "@/lib/types";
 import type { LookupResultItem } from "@/app/api/lookup/route";
 
 interface FormState {
@@ -17,10 +17,6 @@ interface FormState {
 const INITIAL_STATE: FormState = { name: "", phone: "" };
 
 type FieldErrors = Partial<Record<keyof FormState, string>>;
-
-function isApplicationStatus(status: string): status is ApplicationStatus {
-  return ["신청완료", "대기", "취소", "이수"].includes(status);
-}
 
 export function LookupForm() {
   const [form, setForm] = useState<FormState>(INITIAL_STATE);
@@ -70,7 +66,13 @@ export function LookupForm() {
         return;
       }
 
-      setResults((json?.results ?? []) as LookupResultItem[]);
+      if (!json || !Array.isArray(json.results)) {
+        setSubmitError("응답을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+        setLoading(false);
+        return;
+      }
+
+      setResults(json.results as LookupResultItem[]);
     } catch {
       setSubmitError("네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {

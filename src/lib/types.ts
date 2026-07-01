@@ -30,6 +30,13 @@ export interface Workshop {
 
 export type ApplicationStatus = "신청완료" | "대기" | "취소" | "이수";
 
+/** ApplicationStatus의 전체 값 목록(단일 출처). 상태 드롭다운/타입가드 등에서 재사용한다. */
+export const APPLICATION_STATUSES: ApplicationStatus[] = ["신청완료", "대기", "취소", "이수"];
+
+export function isApplicationStatus(value: string): value is ApplicationStatus {
+  return (APPLICATION_STATUSES as string[]).includes(value);
+}
+
 export interface Application {
   id: string;
   workshop_id: string;

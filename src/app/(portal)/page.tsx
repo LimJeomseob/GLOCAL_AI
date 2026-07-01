@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import {
+  APPLICATION_OPEN_AT,
   PROGRAM_FULL_TITLE,
   PROGRAM_NAME,
   TOTAL_CAPACITY,
   WORKSHOP_SEEDS,
 } from "@/lib/constants";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { InstructorCardGrid } from "@/components/InstructorCard";
 import { ScheduleTable } from "@/components/ScheduleTable";
 
@@ -57,7 +58,16 @@ export default function PortalIntroPage() {
           중심 특강입니다. 교직원, 재학생, 지역민 누구나 참여할 수 있습니다.
         </p>
 
-        <dl className="mx-auto mt-8 grid max-w-3xl grid-cols-1 gap-4 text-left sm:grid-cols-2">
+        <dl className="mx-auto mt-8 grid max-w-4xl grid-cols-1 gap-4 text-left sm:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+            <dt className="text-xs font-semibold text-slate-500">신청기간</dt>
+            <dd className="mt-1 text-base font-bold text-slate-900">
+              {formatDateTime(APPLICATION_OPEN_AT)}부터
+            </dd>
+            <dd className="mt-1 text-sm text-slate-500">
+              각 회차 시작 2일 전 자동 마감(회차별 마감일은 일정표 참고)
+            </dd>
+          </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
             <dt className="text-xs font-semibold text-slate-500">운영기간</dt>
             <dd className="mt-1 text-base font-bold text-slate-900">

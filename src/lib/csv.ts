@@ -3,9 +3,16 @@
  * 현재 화면에 표시된(필터링된) 데이터를 CSV로 내보낼 때 공통으로 사용한다.
  */
 
-/** CSV 셀 값 하나를 이스케이프한다(쉼표/줄바꿈/따옴표 포함 시 큰따옴표로 감싸기). */
+// Excel/Sheets는 셀이 =,+,-,@,탭,CR로 시작하면 수식으로 해석한다. 신청자가 입력한
+// 성명/소속 등이 그대로 들어가므로, 내보내기 전 선행 문자를 무력화해 수식 인젝션을 막는다.
+const FORMULA_TRIGGER_CHARS = /^[=+\-@\t\r]/;
+
+/** CSV 셀 값 하나를 이스케이프한다(쉼표/줄바꿈/따옴표 포함 시 큰따옴표로 감싸기, 수식 인젝션 방지). */
 function escapeCsvCell(value: unknown): string {
-  const str = value === null || value === undefined ? "" : String(value);
+  let str = value === null || value === undefined ? "" : String(value);
+  if (FORMULA_TRIGGER_CHARS.test(str)) {
+    str = `'${str}`;
+  }
   if (/[",\n\r]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }

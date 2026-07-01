@@ -17,10 +17,12 @@ export default async function ApplyPage() {
     supabase.rpc("get_workshop_availability"),
   ]);
 
+  // get_workshop_availability()의 applied_count는 Postgres bigint이며 PostgREST가
+  // JSON 정밀도 손실 방지를 위해 문자열로 직렬화하므로 명시적으로 숫자 변환한다.
   const appliedCountByWorkshopId = new Map<string, number>(
-    (availability ?? []).map((row: { workshop_id: string; applied_count: number }) => [
+    (availability ?? []).map((row: { workshop_id: string; applied_count: number | string }) => [
       row.workshop_id,
-      row.applied_count,
+      Number(row.applied_count),
     ])
   );
 
