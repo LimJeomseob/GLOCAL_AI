@@ -5,6 +5,7 @@ export const PROGRAM_FULL_TITLE =
   "모두의 AI를 위한 7월 AI활용 특강 — 일과 삶을 바꾸는 생성형 AI 실무과정";
 export const ISSUER_NAME = "경상국립대학교 AI융합원장";
 export const ORG_NAME = "경상국립대학교";
+export const ORGANIZER_NAME = "경상국립대학교 AI 융합원";
 
 export const APPLICATION_OPEN_AT = "2026-07-08T09:00:00+09:00";
 

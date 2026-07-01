@@ -25,6 +25,13 @@ export function Header() {
             </span>
           </span>
         </Link>
+        <Link
+          href="/admin/login"
+          className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-bold text-brand transition-colors hover:bg-brand/5"
+          aria-label="관리자 화면으로 이동"
+        >
+          관리자
+        </Link>
       </div>
     </header>
   );
