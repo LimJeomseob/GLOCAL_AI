@@ -83,6 +83,19 @@ export interface Certificate {
   pdf_path: string;
 }
 
+/** POST supabase.functions.invoke("lookup") 응답의 각 항목 (Edge Function과 동일한 shape 유지) */
+export interface LookupResultItem {
+  applicationId: string;
+  round: number;
+  topic: string;
+  startAt: string;
+  endAt: string;
+  location: string;
+  status: string;
+  certNo: string | null;
+  certDownloadUrl: string | null;
+}
+
 export type AdminRole = "admin" | "superadmin";
 
 export interface AdminUser {

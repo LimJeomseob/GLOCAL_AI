@@ -8,6 +8,7 @@ import { TABLES } from "@/lib/db-tables";
 import { PROGRAM_NAME } from "@/lib/constants";
 import { formatDateTime, formatDateRange } from "@/lib/format";
 import { exportRowsAsCsv } from "@/lib/csv";
+import { issueCertificatesForApplications } from "@/lib/issueCertificate";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { APPLICATION_STATUSES, type ApplicationStatus, type ApplicationWithWorkshop } from "@/lib/types";
@@ -17,6 +18,7 @@ const STATUS_OPTIONS = APPLICATION_STATUSES;
 interface RowMessage {
   type: "success" | "error";
   text: string;
+  downloadUrl?: string;
 }
 
 function BoolBadge({ value, trueLabel, falseLabel }: { value: boolean; trueLabel: string; falseLabel: string }) {
@@ -94,26 +96,15 @@ export function ApplicantsTable({
     }
   }
 
-  async function issueCertificates(ids: string[]) {
-    const res = await fetch("/api/certificates/issue", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ applicationIds: ids }),
-    });
-    const json = await res.json().catch(() => null);
-    if (!res.ok) {
-      throw new Error(json?.error ?? `수료증 발급 요청이 실패했습니다. (${res.status})`);
-    }
-    const results: { applicationId: string; success: boolean; certNo?: string; error?: string }[] =
-      json?.results ?? [];
-    return results;
-  }
-
   async function handleIssueCertificate(id: string) {
+    const application = applications.find((a) => a.id === id);
+    if (!application) return;
+
     setRowLoading((prev) => ({ ...prev, [id]: true }));
     setRowMessage(id, null);
     try {
-      const results = await issueCertificates([id]);
+      const supabase = createSupabaseBrowserClient();
+      const results = await issueCertificatesForApplications(supabase, [application]);
       const result = results.find((r) => r.applicationId === id);
       if (!result) {
         setRowMessage(id, { type: "error", text: "발급 응답을 확인할 수 없습니다." });
@@ -126,6 +117,7 @@ export function ApplicantsTable({
         setRowMessage(id, {
           type: "success",
           text: `수료증이 발급되었습니다. (번호: ${result.certNo ?? "-"})`,
+          downloadUrl: result.downloadUrl,
         });
         router.refresh();
       } else {
@@ -180,7 +172,8 @@ export function ApplicantsTable({
 
     setBulkLoading(true);
     try {
-      const results = await issueCertificates(eligible.map((a) => a.id));
+      const supabase = createSupabaseBrowserClient();
+      const results = await issueCertificatesForApplications(supabase, eligible);
       const successIds = new Set(
         results.filter((r) => r.success).map((r) => r.applicationId)
       );
@@ -189,6 +182,19 @@ export function ApplicantsTable({
       setApplications((prev) =>
         prev.map((a) => (successIds.has(a.id) ? { ...a, cert_issued: true } : a))
       );
+
+      results.forEach((r) => {
+        setRowMessage(
+          r.applicationId,
+          r.success
+            ? {
+                type: "success",
+                text: `수료증이 발급되었습니다. (번호: ${r.certNo ?? "-"})`,
+                downloadUrl: r.downloadUrl,
+              }
+            : { type: "error", text: r.error ?? "수료증 발급에 실패했습니다." }
+        );
+      });
 
       const parts: string[] = [];
       if (successIds.size > 0) parts.push(`${successIds.size}건 발급 성공`);
@@ -471,6 +477,17 @@ export function ApplicantsTable({
                         >
                           {message.text}
                         </p>
+                      )}
+                      {message?.downloadUrl && (
+                        <a
+                          href={message.downloadUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          download
+                          className="text-xs font-semibold text-accent underline underline-offset-2"
+                        >
+                          PDF 다운로드
+                        </a>
                       )}
                     </div>
                   </td>

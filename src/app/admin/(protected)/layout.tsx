@@ -1,19 +1,40 @@
-import { redirect } from "next/navigation";
-import { getCurrentAdmin } from "@/lib/admin-auth";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { useAdminSession } from "@/lib/useAdminSession";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { SignOutButton } from "@/components/admin/SignOutButton";
 import { PROGRAM_NAME } from "@/lib/constants";
 
-export default async function AdminProtectedLayout({
+export default function AdminProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // 미들웨어(1차 통제)에 더해 서버 컴포넌트에서도 재확인(이중 통제, §6.1)
-  const admin = await getCurrentAdmin();
-  if (!admin) {
-    redirect("/admin/login");
+  const session = useAdminSession();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // 서버 미들웨어가 없으므로(정적 배포) 클라이언트에서 인증 실패 시 로그인 화면으로 이동시킨다.
+  // 실제 데이터 접근 통제는 Supabase RLS(is_admin())가 이중으로 담당한다(PRD §6.1).
+  useEffect(() => {
+    if (session.status === "unauthorized") {
+      router.replace(`/admin/login?redirectedFrom=${encodeURIComponent(pathname)}`);
+    }
+  }, [session.status, router, pathname]);
+
+  if (session.status !== "authorized") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <p className="text-sm text-slate-500" role="status">
+          {session.status === "loading" ? "로그인 확인 중..." : "로그인 화면으로 이동합니다..."}
+        </p>
+      </div>
+    );
   }
+
+  const { admin } = session;
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">

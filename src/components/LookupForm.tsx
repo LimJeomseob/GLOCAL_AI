@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { lookupSchema } from "@/lib/validation";
 import { FormField, inputBaseClass } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatDateRange } from "@/lib/format";
-import { isApplicationStatus } from "@/lib/types";
-import type { LookupResultItem } from "@/app/api/lookup/route";
+import { isApplicationStatus, type LookupResultItem } from "@/lib/types";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface FormState {
   name: string;
@@ -52,27 +53,33 @@ export function LookupForm() {
     setResults(null);
 
     try {
-      const res = await fetch("/api/lookup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsed.data),
+      const supabase = createSupabaseBrowserClient();
+      const { data, error } = await supabase.functions.invoke("lookup", {
+        body: parsed.data,
       });
 
-      const json = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        setSubmitError(json?.error ?? "조회 중 오류가 발생했습니다.");
+      if (error) {
+        let message = "조회 중 오류가 발생했습니다.";
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const body = await error.context.json();
+            if (body?.error) message = body.error;
+          } catch {
+            // 본문을 읽을 수 없으면 기본 메시지 사용
+          }
+        }
+        setSubmitError(message);
         setLoading(false);
         return;
       }
 
-      if (!json || !Array.isArray(json.results)) {
+      if (!data || !Array.isArray(data.results)) {
         setSubmitError("응답을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.");
         setLoading(false);
         return;
       }
 
-      setResults(json.results as LookupResultItem[]);
+      setResults(data.results as LookupResultItem[]);
     } catch {
       setSubmitError("네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
