@@ -1,16 +1,41 @@
-import type { InstructorProfile } from "@/lib/constants";
+"use client";
 
-interface InstructorCardProps {
-  instructor: InstructorProfile;
-  onOpen: (instructor: InstructorProfile) => void;
-}
+import { useState } from "react";
+import { INSTRUCTORS, type InstructorProfile } from "@/lib/constants";
+import { InstructorModal } from "@/components/InstructorModal";
 
 /** 강사 이니셜(성) 추출 — 실제 프로필 사진 파일이 없으므로 아바타로 대체 */
 function getInitial(name: string): string {
   return name.slice(0, 1);
 }
 
-export function InstructorCard({ instructor, onOpen }: InstructorCardProps) {
+/** 강사 카드 그리드 + 클릭 시 상세 프로필 모달을 여는 상태관리를 함께 담당 */
+export function InstructorCardGrid() {
+  const [selected, setSelected] = useState<InstructorProfile | null>(null);
+
+  return (
+    <>
+      <ul
+        role="list"
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+      >
+        {INSTRUCTORS.map((instructor) => (
+          <li key={instructor.slug}>
+            <InstructorCard instructor={instructor} onOpen={setSelected} />
+          </li>
+        ))}
+      </ul>
+      <InstructorModal instructor={selected} onClose={() => setSelected(null)} />
+    </>
+  );
+}
+
+interface InstructorCardProps {
+  instructor: InstructorProfile;
+  onOpen: (instructor: InstructorProfile) => void;
+}
+
+function InstructorCard({ instructor, onOpen }: InstructorCardProps) {
   return (
     <button
       type="button"
