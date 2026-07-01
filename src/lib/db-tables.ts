@@ -10,6 +10,8 @@ export const TABLES = {
   ADMIN_USERS: "admin_users",
   KAKAO_NOTIFICATIONS: "kakao_notifications",
   KAKAO_SEND_SETTINGS: "kakao_send_settings",
+  KAKAO_TEMPLATES: "kakao_templates",
+  KAKAO_DIGEST_STATE: "kakao_digest_state",
 } as const;
 
 export const CERTIFICATES_BUCKET = "certificates";
