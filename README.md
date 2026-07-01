@@ -46,9 +46,33 @@ npm install -g supabase
 supabase login
 supabase link --project-ref <project-ref>
 supabase functions deploy lookup
+supabase functions deploy kakao-digest --no-verify-jwt
 ```
 `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` 는 Supabase가 모든 Edge Function에
 자동으로 주입하므로 별도 시크릿 설정이 필요 없습니다.
+
+### 2-1. 카카오 알림톡 · 관리자 알림 메일 설정 (1일 2회 대상자 다이제스트)
+알림톡 발송 대상자 명단을 **하루 2회(오전 9시·오후 4시 KST)** 관리자 이메일로 보내는 기능.
+메일에는 대상자별 `[ID, 성명, 연락처(010-####-####)]` 와 관리자가 편집한 알림톡 문구가 함께 담긴다.
+문구는 관리자 포털 → 신청자 관리 → "카카오 알림톡 · 관리자 알림 메일" 패널에서 직접 편집한다.
+
+1. **마이그레이션 적용**: `supabase db push` (또는 대시보드 SQL Editor에서 `0003_kakao_digest.sql` 실행).
+2. **이메일 공급자(Resend) 준비**: [resend.com](https://resend.com) 가입 → API Key 발급, 발신 주소(도메인 인증 또는
+   테스트용 `onboarding@resend.dev`) 확보 후 Edge Function secrets 등록:
+   ```bash
+   supabase secrets set RESEND_API_KEY=re_xxx MAIL_FROM="특강알림 <onboarding@resend.dev>"
+   supabase secrets set KAKAO_TRIGGER_SECRET=<임의의-긴-난수문자열>
+   ```
+   - `RESEND_API_KEY`/`MAIL_FROM` 미설정 시에도 앱은 정상 동작하며, 발송 시 "미구성" 안내만 표시된다.
+3. **스케줄러(GitHub Actions) 시크릿**: 저장소 Settings → Secrets and variables → Actions → Secrets 에 추가:
+   - `SUPABASE_FUNCTIONS_URL` = `https://<project-ref>.supabase.co/functions/v1`
+   - `SUPABASE_ANON_KEY` = 프로젝트 anon 키(공개 키)
+   - `KAKAO_TRIGGER_SECRET` = 위 2번에서 정한 것과 동일한 값
+   → `.github/workflows/kakao-digest.yml` 이 09:00/16:00 KST에 자동 호출(수동은 Actions 탭 → Kakao Digest Email → Run workflow).
+4. **대상자 이메일 수신자**: `admin_users` 테이블의 이메일 전체가 다이제스트 메일 수신자다.
+
+> 참고: 신청자에게 카카오 알림톡을 **직접** 발송하려면 별도의 유료 발송 대행사(솔라피 등) 채널 개설·템플릿 심사·발송키가
+> 필요하다(후속 옵션). 본 구현은 그 전 단계로, 관리자에게 대상자 명단+문구를 메일로 제공한다.
 
 ### 3. GitHub Pages 활성화
 1. 저장소 Settings → Pages → Build and deployment → **Source: GitHub Actions** 선택

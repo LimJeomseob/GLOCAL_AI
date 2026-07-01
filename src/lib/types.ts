@@ -116,6 +116,8 @@ export interface KakaoNotification {
   status: KakaoNotificationStatus;
   response_code: string | null;
   retry_count: number;
+  channel?: string;
+  error_message?: string | null;
 }
 
 export interface KakaoAutoSendSettings {
@@ -125,5 +127,27 @@ export interface KakaoAutoSendSettings {
   template_2_enabled: boolean;
   template_3_enabled: boolean;
   schedule_days_before: number; // (c) D-N 예약발송 기준일
+  active_template_type: KakaoTemplateType; // 다이제스트 메일에 사용할 활성 템플릿
+  email_enabled: boolean; // 관리자 알림 메일 사용 여부
+  notify_when_empty: boolean; // 대상자 0명일 때도 메일 발송할지
+  updated_at: string;
+}
+
+/** kakao_templates — 관리자가 편집하는 알림톡/메일 문구 */
+export interface KakaoTemplate {
+  id: string;
+  template_type: KakaoTemplateType;
+  name: string;
+  email_subject: string;
+  body: string;
+  variables: string[];
+  enabled: boolean;
+  updated_at: string;
+}
+
+/** kakao_digest_state — 다이제스트 워터마크(직전 발송 시각) */
+export interface KakaoDigestState {
+  id: string;
+  last_run_at: string;
   updated_at: string;
 }

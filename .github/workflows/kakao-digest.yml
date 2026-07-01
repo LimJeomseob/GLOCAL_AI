@@ -1,0 +1,38 @@
+name: Kakao Digest Email
+
+# 관리자에게 알림톡 대상자 명단 메일을 하루 2회(오전 9시 / 오후 4시 KST) 발송한다.
+# KST = UTC+9 이므로: 09:00 KST = 00:00 UTC, 16:00 KST = 07:00 UTC
+on:
+  schedule:
+    - cron: "0 0 * * *"
+    - cron: "0 7 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger kakao-digest Edge Function
+        env:
+          FUNCTIONS_URL: ${{ secrets.SUPABASE_FUNCTIONS_URL }}
+          ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          TRIGGER_SECRET: ${{ secrets.KAKAO_TRIGGER_SECRET }}
+        run: |
+          if [ -z "$FUNCTIONS_URL" ] || [ -z "$TRIGGER_SECRET" ]; then
+            echo "SUPABASE_FUNCTIONS_URL / KAKAO_TRIGGER_SECRET 시크릿이 설정되지 않았습니다." >&2
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/resp.json -w "%{http_code}" -X POST \
+            "${FUNCTIONS_URL}/kakao-digest" \
+            -H "Content-Type: application/json" \
+            -H "apikey: ${ANON_KEY}" \
+            -H "Authorization: Bearer ${ANON_KEY}" \
+            -H "x-kakao-secret: ${TRIGGER_SECRET}" \
+            -d '{}')
+          echo "HTTP ${code}"
+          cat /tmp/resp.json || true
+          echo
+          if [ "$code" != "200" ]; then
+            echo "다이제스트 발송 실패(HTTP ${code})" >&2
+            exit 1
+          fi
