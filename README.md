@@ -30,8 +30,13 @@
    - Google Cloud Console에서 OAuth 클라이언트 생성, **Authorized redirect URI**는 Supabase가 제공하는
      `https://<project-ref>.supabase.co/auth/v1/callback` 로 등록
    - 발급받은 Client ID/Secret을 Supabase Google Provider 설정에 입력
-4. Authentication → URL Configuration → **Redirect URLs** 에 배포될 GitHub Pages 주소를 추가
-   (예: `https://<github-username>.github.io/GLOCAL_AI/**`)
+4. Authentication → URL Configuration (**로그인 후 localhost로 튕기는 오류를 막으려면 반드시 설정**):
+   - **Site URL**: 기본값이 `http://localhost:3000` 이므로 배포 주소로 바꿉니다.
+     예: `https://<github-username>.github.io/GLOCAL_AI`
+     (이 값이 localhost로 남아 있으면, 구글 로그인 후 `ERR_CONNECTION_REFUSED`(localhost 연결 거부)로 실패합니다)
+   - **Redirect URLs**: 배포될 GitHub Pages 주소를 와일드카드로 추가합니다.
+     예: `https://<github-username>.github.io/GLOCAL_AI/**`
+     (`**` 는 하위 경로와 `?redirectedFrom=...` 쿼리스트링까지 매칭)
 5. Table Editor에서 `admin_users` 테이블에 관리자로 추가할 이메일이 들어있는지 확인
    (시드에 `eros4424@gmail.com` 포함됨. 추가 관리자는 이 테이블에 행을 더 넣으면 됩니다)
 
