@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ApplicationForm, type WorkshopOption } from "@/components/ApplicationForm";
 import { TABLES } from "@/lib/db-tables";
 import type { Workshop } from "@/lib/types";
 
-export default function ApplyPage() {
+function ApplyContent() {
+  // 소개 탭 "신청 바로가기"(/apply?round=N)로 진입 시 해당 회차를 자동 선택
+  const searchParams = useSearchParams();
+  const roundParam = Number(searchParams.get("round"));
+  const initialRound = Number.isInteger(roundParam) && roundParam > 0 ? roundParam : undefined;
+
   const [options, setOptions] = useState<WorkshopOption[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,5 +96,13 @@ export default function ApplyPage() {
     );
   }
 
-  return <ApplicationForm workshopOptions={options} />;
+  return <ApplicationForm workshopOptions={options} initialRound={initialRound} />;
+}
+
+export default function ApplyPage() {
+  return (
+    <Suspense>
+      <ApplyContent />
+    </Suspense>
+  );
 }
