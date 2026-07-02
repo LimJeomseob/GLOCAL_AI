@@ -44,8 +44,19 @@ const INITIAL_STATE: FormState = {
 
 type FieldErrors = Partial<Record<keyof FormState, string>>;
 
-export function ApplicationForm({ workshopOptions }: { workshopOptions: WorkshopOption[] }) {
-  const [form, setForm] = useState<FormState>(INITIAL_STATE);
+export function ApplicationForm({
+  workshopOptions,
+  initialRound,
+}: {
+  workshopOptions: WorkshopOption[];
+  initialRound?: number;
+}) {
+  // 소개 탭 "신청 바로가기"로 진입한 경우 해당 회차를 미리 선택(마감 회차는 미선택 유지)
+  const [form, setForm] = useState<FormState>(() => ({
+    ...INITIAL_STATE,
+    workshopId:
+      workshopOptions.find((w) => w.round === initialRound && !w.isClosed)?.id ?? "",
+  }));
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);

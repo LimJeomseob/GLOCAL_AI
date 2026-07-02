@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { APPLICATION_OPEN_AT, PROGRAM_NAME, WORKSHOP_SEEDS } from "@/lib/constants";
 import { formatDateTime } from "@/lib/format";
-import { InstructorCardGrid } from "@/components/InstructorCard";
-import { ScheduleTable } from "@/components/ScheduleTable";
+import { ProgramCards } from "@/components/ProgramCards";
 
 export const metadata: Metadata = {
   title: `소개 | ${PROGRAM_NAME}`,
@@ -110,29 +109,17 @@ export default function PortalIntroPage() {
         </ul>
       </section>
 
-      {/* 강사 소개 */}
-      <section aria-labelledby="instructor-heading">
-        <h2 id="instructor-heading" className="text-xl font-bold text-slate-900 sm:text-2xl">
-          강사 소개
-        </h2>
-        <p className="mt-2 text-sm text-slate-600">
-          카드를 클릭(또는 Enter/Space)하면 강사의 상세 프로필을 확인할 수 있습니다.
-        </p>
-        <div className="mt-6">
-          <InstructorCardGrid />
-        </div>
-      </section>
-
-      {/* 회차별 일정표 */}
+      {/* 프로그램 안내 */}
       <section aria-labelledby="schedule-heading">
         <h2 id="schedule-heading" className="text-xl font-bold text-slate-900 sm:text-2xl">
-          회차별 일정표
+          프로그램 안내
         </h2>
         <p className="mt-2 text-sm text-slate-600">
-          회차, 일시, 장소, 정원, 수준/대상, 강사와 2세션 상세 강의내용, 협조사항을 확인하세요.
+          각 프로그램의 일정·장소·정원을 확인하고 바로 신청할 수 있습니다. 강사명을 클릭하면
+          상세 프로필을 볼 수 있습니다.
         </p>
         <div className="mt-6">
-          <ScheduleTable />
+          <ProgramCards />
         </div>
         <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
           <strong className="font-bold">안내</strong> 각 회차 시작 2일 전 자동 마감됩니다. 신청을
