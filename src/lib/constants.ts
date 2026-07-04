@@ -87,7 +87,7 @@ export const WORKSHOP_SEEDS: WorkshopSeed[] = [
   },
   {
     round: 3,
-    topicSummary: "한국어에 효과적인 프롬프트 작성법(온라인)",
+    topicSummary: "효과적인 프롬프트 작성법(온라인)",
     instructor: "강수진",
     location: "온라인(실시간 Zoom)",
     capacity: 100,
@@ -99,9 +99,9 @@ export const WORKSHOP_SEEDS: WorkshopSeed[] = [
     sessions: [
       {
         time_label: "14:00~16:00",
-        topic: "한국어에 효과적인 프롬프트 작성법(온라인)",
+        topic: "효과적인 프롬프트 작성법(온라인)",
         content:
-          "① 한국어 기반 프롬프트 구조와 출력 포맷 설계로 결과 정확도 향상 ② 생성형 AI 플랫폼 기반 PPT·문서 등 콘텐츠 프롬프트 시연",
+          "① 프롬프트 구조와 출력 포맷 설계로 결과 정확도 향상 ② 생성형 AI 플랫폼 기반 PPT·문서 등 콘텐츠 프롬프트 시연",
       },
     ],
     notes: "원활한 강사 상호작용을 위해 카메라·마이크 사용 권장",
@@ -224,12 +224,14 @@ export const INSTRUCTORS: InstructorProfile[] = [
     rounds: [3],
     education: "University of Hawaii at Manoa 한국어학 박사(대화 분석·상호작용 언어학)",
     career: [
+      "저서 「지적 대화를 위한 AI 언어 수업: 생각을 확장하는 프롬프트의 기술」",
+      "성균관대학교 영상학과 겸임교수",
       "저서 「프롬프트 엔지니어의 업무일지」",
       "유튜브 '프롬수진' 운영",
       "생성형 AI·프롬프트 엔지니어링 기업 강연·교육 다수",
       "프롬프트 기획·제작·테스트·평가 방법론 강의",
     ],
-    assignment: "본 특강 3차(한국어에 효과적인 프롬프트 작성법 · 온라인) 담당",
+    assignment: "본 특강 3차(효과적인 프롬프트 작성법 · 온라인) 담당",
     photoAlt: "강수진 강사 프로필 사진",
   },
   {
