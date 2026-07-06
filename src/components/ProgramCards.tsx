@@ -33,6 +33,9 @@ interface LiveWorkshopInfo {
   appliedCount: number;
 }
 
+/** loading = 현재 시각 확인 전(상태 미확정), 이후 신청 예정/모집중/마감으로 확정 */
+type ProgramCardStatus = "loading" | "notYetOpen" | "open" | "closed";
+
 export function ProgramCards() {
   const [selectedInstructor, setSelectedInstructor] = useState<InstructorProfile | null>(null);
   // 상태 판정은 마운트 후 클라이언트 시각으로만 계산(빌드 시점 고정·하이드레이션 불일치 방지)
@@ -82,22 +85,28 @@ export function ProgramCards() {
           const live = liveByRound?.get(w.round);
           const applyOpenAt = live?.applyOpenAt ?? w.applyOpenAt;
           const deadline = live?.deadline ?? w.deadline;
-          const status =
+          // 현재 시각(now)을 알기 전(정적 렌더/하이드레이션 시점)에는 상태를 단정하지 않는다.
+          // 이 구간에 "모집중"을 표기하면 정적 HTML에 잘못된 상태가 박제되므로 "확인 중"으로 둔다.
+          const statusKind: ProgramCardStatus =
             now === null
-              ? null
-              : deriveWorkshopStatus(
-                  { capacity: live?.capacity ?? w.capacity, apply_open_at: applyOpenAt, deadline },
-                  live?.appliedCount ?? 0,
-                  now
-                );
+              ? "loading"
+              : (() => {
+                  const s = deriveWorkshopStatus(
+                    { capacity: live?.capacity ?? w.capacity, apply_open_at: applyOpenAt, deadline },
+                    live?.appliedCount ?? 0,
+                    now
+                  );
+                  if (s.isNotYetOpen) return "notYetOpen";
+                  if (s.isClosed) return "closed";
+                  return "open";
+                })();
 
           return (
             <ProgramCard
               key={w.round}
               workshop={w}
               applyOpenAt={applyOpenAt}
-              isNotYetOpen={status?.isNotYetOpen ?? false}
-              isClosed={status?.isClosed ?? false}
+              statusKind={statusKind}
               onOpenInstructor={openInstructor}
             />
           );
@@ -114,16 +123,21 @@ export function ProgramCards() {
 function ProgramCard({
   workshop: w,
   applyOpenAt,
-  isNotYetOpen,
-  isClosed,
+  statusKind,
   onOpenInstructor,
 }: {
   workshop: WorkshopSeed;
   applyOpenAt: string;
-  isNotYetOpen: boolean;
-  isClosed: boolean;
+  statusKind: ProgramCardStatus;
   onOpenInstructor: (name: string) => void;
 }) {
+  const badge = {
+    loading: { label: "확인 중", className: "bg-slate-100 text-slate-500" },
+    notYetOpen: { label: "신청 예정", className: "bg-sky-100 text-sky-700" },
+    open: { label: "모집중", className: "bg-emerald-100 text-emerald-700" },
+    closed: { label: "마감", className: "bg-slate-800 text-white" },
+  }[statusKind];
+
   return (
     <li className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
       <div className="flex items-center justify-between gap-2">
@@ -138,14 +152,10 @@ function ProgramCard({
         <span
           className={clsx(
             "inline-flex items-center rounded-full px-3 py-1 text-xs font-bold",
-            isNotYetOpen
-              ? "bg-sky-100 text-sky-700"
-              : isClosed
-              ? "bg-slate-800 text-white"
-              : "bg-emerald-100 text-emerald-700"
+            badge.className
           )}
         >
-          {isNotYetOpen ? "신청 예정" : isClosed ? "마감" : "모집중"}
+          {badge.label}
         </span>
       </div>
 
@@ -211,11 +221,15 @@ function ProgramCard({
 
       <div className="mt-4 flex-1" aria-hidden="true" />
 
-      {isNotYetOpen ? (
+      {statusKind === "loading" ? (
+        <Button type="button" disabled className="w-full">
+          신청 상태 확인 중…
+        </Button>
+      ) : statusKind === "notYetOpen" ? (
         <Button type="button" disabled className="w-full">
           {formatDateTime(applyOpenAt)} 오픈
         </Button>
-      ) : isClosed ? (
+      ) : statusKind === "closed" ? (
         <Button type="button" disabled className="w-full">
           신청 마감
         </Button>
