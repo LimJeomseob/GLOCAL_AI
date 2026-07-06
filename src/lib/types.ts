@@ -21,6 +21,7 @@ export interface Workshop {
   start_at: string; // timestamptz
   end_at: string; // timestamptz
   deadline: string; // timestamptz = start_at - 2일
+  apply_open_at: string; // timestamptz = 신청 시작(오픈) 일시
   level: WorkshopLevel;
   target: string;
   sessions: WorkshopSession[]; // 회차별 세부 강의(2세션)

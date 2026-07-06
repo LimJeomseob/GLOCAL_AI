@@ -24,6 +24,7 @@ export interface WorkshopSeed {
   startAt: string;
   endAt: string;
   deadline: string;
+  applyOpenAt: string;
   level: WorkshopLevel;
   target: string;
   sessions: WorkshopSession[];
@@ -40,6 +41,7 @@ export const WORKSHOP_SEEDS: WorkshopSeed[] = [
     startAt: "2026-07-22T13:00:00+09:00",
     endAt: "2026-07-22T17:00:00+09:00",
     deadline: "2026-07-20T13:00:00+09:00",
+    applyOpenAt: APPLICATION_OPEN_AT,
     level: "초급",
     target: "전체",
     sessions: [
@@ -67,6 +69,7 @@ export const WORKSHOP_SEEDS: WorkshopSeed[] = [
     startAt: "2026-07-24T13:00:00+09:00",
     endAt: "2026-07-24T17:00:00+09:00",
     deadline: "2026-07-22T13:00:00+09:00",
+    applyOpenAt: APPLICATION_OPEN_AT,
     level: "중급",
     target: "공공기관 실무자",
     sessions: [
@@ -94,6 +97,7 @@ export const WORKSHOP_SEEDS: WorkshopSeed[] = [
     startAt: "2026-07-29T14:00:00+09:00",
     endAt: "2026-07-29T16:00:00+09:00",
     deadline: "2026-07-27T14:00:00+09:00",
+    applyOpenAt: APPLICATION_OPEN_AT,
     level: "초급",
     target: "전체",
     sessions: [
@@ -115,6 +119,7 @@ export const WORKSHOP_SEEDS: WorkshopSeed[] = [
     startAt: "2026-07-31T13:00:00+09:00",
     endAt: "2026-07-31T17:00:00+09:00",
     deadline: "2026-07-29T13:00:00+09:00",
+    applyOpenAt: APPLICATION_OPEN_AT,
     level: "중급",
     target: "전체",
     sessions: [
@@ -141,6 +146,7 @@ export const WORKSHOP_SEEDS: WorkshopSeed[] = [
     startAt: "2026-08-07T13:00:00+09:00",
     endAt: "2026-08-07T17:00:00+09:00",
     deadline: "2026-08-05T13:00:00+09:00",
+    applyOpenAt: APPLICATION_OPEN_AT,
     level: "고급",
     target: "공공기관 실무자",
     sessions: [
@@ -207,6 +213,7 @@ export const INSTRUCTORS: InstructorProfile[] = [
     affiliation: "바이브코딩 · 업무자동화 전문 강사",
     rounds: [2, 5],
     career: [
+      "전) 국회 보좌관",
       "바이브코딩(클로드 코드 등) 강의",
       "자연어 업무 자동화 스크립트 강의",
       "데이터 분석·보고서 자동화 강의",
