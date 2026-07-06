@@ -10,6 +10,7 @@ import {
   type WorkshopSeed,
 } from "@/lib/constants";
 import { formatDateRange, formatDateTime } from "@/lib/format";
+import { deriveWorkshopStatus, fetchWorkshopsWithAvailability } from "@/lib/workshops";
 import { InstructorModal } from "@/components/InstructorModal";
 import { Button } from "@/components/ui/Button";
 
@@ -24,13 +25,48 @@ const LEVEL_BADGE_CLASSES: Record<string, string> = {
  * - 강사명 클릭 → 프로필 팝업(InstructorModal)
  * - 신청 바로가기 → /apply?round=N (신청 탭에서 해당 회차 자동 선택)
  */
+/** 회차별 신청기간·정원 실시간 정보(DB workshops 기준) */
+interface LiveWorkshopInfo {
+  capacity: number;
+  applyOpenAt: string;
+  deadline: string;
+  appliedCount: number;
+}
+
 export function ProgramCards() {
   const [selectedInstructor, setSelectedInstructor] = useState<InstructorProfile | null>(null);
-  // 마감 판정은 마운트 후 클라이언트 시각으로만 계산(빌드 시점 고정·하이드레이션 불일치 방지)
+  // 상태 판정은 마운트 후 클라이언트 시각으로만 계산(빌드 시점 고정·하이드레이션 불일치 방지)
   const [now, setNow] = useState<number | null>(null);
+  // 신청기간·정원은 DB workshops를 실시간 조회해 신청 탭과 동일하게 연동한다.
+  // null = 로딩 중(정적 시드값으로 표시), 로드/실패 후에는 Map으로 확정.
+  const [liveByRound, setLiveByRound] = useState<Map<number, LiveWorkshopInfo> | null>(null);
 
   useEffect(() => {
     setNow(Date.now());
+
+    let active = true;
+    fetchWorkshopsWithAvailability()
+      .then(({ workshops, appliedCountByWorkshopId }) => {
+        if (!active) return;
+        const byRound = new Map<number, LiveWorkshopInfo>();
+        for (const w of workshops) {
+          byRound.set(w.round, {
+            capacity: w.capacity,
+            applyOpenAt: w.apply_open_at,
+            deadline: w.deadline,
+            appliedCount: appliedCountByWorkshopId.get(w.id) ?? 0,
+          });
+        }
+        setLiveByRound(byRound);
+      })
+      // 조회 실패 시에도 시드 기준으로 표시(빈 Map)
+      .catch(() => {
+        if (active) setLiveByRound(new Map());
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   function openInstructor(name: string) {
@@ -41,15 +77,31 @@ export function ProgramCards() {
   return (
     <>
       <ul role="list" className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {WORKSHOP_SEEDS.map((w) => (
-          <ProgramCard
-            key={w.round}
-            workshop={w}
-            isNotYetOpen={now !== null && now < new Date(w.applyOpenAt).getTime()}
-            isClosed={now !== null && now > new Date(w.deadline).getTime()}
-            onOpenInstructor={openInstructor}
-          />
-        ))}
+        {WORKSHOP_SEEDS.map((w) => {
+          // DB 값이 있으면 신청기간·정원을 DB 기준으로 사용(실시간 연동), 없으면 시드값 폴백
+          const live = liveByRound?.get(w.round);
+          const applyOpenAt = live?.applyOpenAt ?? w.applyOpenAt;
+          const deadline = live?.deadline ?? w.deadline;
+          const status =
+            now === null
+              ? null
+              : deriveWorkshopStatus(
+                  { capacity: live?.capacity ?? w.capacity, apply_open_at: applyOpenAt, deadline },
+                  live?.appliedCount ?? 0,
+                  now
+                );
+
+          return (
+            <ProgramCard
+              key={w.round}
+              workshop={w}
+              applyOpenAt={applyOpenAt}
+              isNotYetOpen={status?.isNotYetOpen ?? false}
+              isClosed={status?.isClosed ?? false}
+              onOpenInstructor={openInstructor}
+            />
+          );
+        })}
       </ul>
       <InstructorModal
         instructor={selectedInstructor}
@@ -61,11 +113,13 @@ export function ProgramCards() {
 
 function ProgramCard({
   workshop: w,
+  applyOpenAt,
   isNotYetOpen,
   isClosed,
   onOpenInstructor,
 }: {
   workshop: WorkshopSeed;
+  applyOpenAt: string;
   isNotYetOpen: boolean;
   isClosed: boolean;
   onOpenInstructor: (name: string) => void;
@@ -159,7 +213,7 @@ function ProgramCard({
 
       {isNotYetOpen ? (
         <Button type="button" disabled className="w-full">
-          {formatDateTime(w.applyOpenAt)} 오픈
+          {formatDateTime(applyOpenAt)} 오픈
         </Button>
       ) : isClosed ? (
         <Button type="button" disabled className="w-full">

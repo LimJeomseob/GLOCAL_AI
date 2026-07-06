@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { APPLICATION_OPEN_AT, PROGRAM_NAME, WORKSHOP_SEEDS } from "@/lib/constants";
-import { formatDateTime } from "@/lib/format";
+import { PROGRAM_NAME, WORKSHOP_SEEDS } from "@/lib/constants";
 import { ProgramCards } from "@/components/ProgramCards";
+import { ApplyOpenAtValue } from "@/components/ApplyOpenAtValue";
 
 export const metadata: Metadata = {
   title: `소개 | ${PROGRAM_NAME}`,
@@ -52,7 +52,7 @@ export default function PortalIntroPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
             <dt className="text-xs font-semibold text-slate-500">신청기간</dt>
             <dd className="mt-1 text-base font-bold text-slate-900">
-              {formatDateTime(APPLICATION_OPEN_AT)}부터
+              <ApplyOpenAtValue />
             </dd>
             <dd className="mt-1 text-sm text-slate-500">
               각 회차 시작 2일 전 자동 마감(회차별 마감일은 일정표 참고)
