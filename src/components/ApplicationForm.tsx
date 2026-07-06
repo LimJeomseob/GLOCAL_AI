@@ -18,7 +18,9 @@ export interface WorkshopOption {
   startAt: string;
   endAt: string;
   deadline: string;
+  applyOpenAt: string;
   remaining: number;
+  isNotYetOpen: boolean;
   isClosed: boolean;
 }
 
@@ -51,18 +53,27 @@ export function ApplicationForm({
   workshopOptions: WorkshopOption[];
   initialRound?: number;
 }) {
-  // 소개 탭 "신청 바로가기"로 진입한 경우 해당 회차를 미리 선택(마감 회차는 미선택 유지)
+  // 소개 탭 "신청 바로가기"로 진입한 경우 해당 회차를 미리 선택(마감·오픈 전 회차는 미선택 유지)
   const [form, setForm] = useState<FormState>(() => ({
     ...INITIAL_STATE,
     workshopId:
-      workshopOptions.find((w) => w.round === initialRound && !w.isClosed)?.id ?? "",
+      workshopOptions.find(
+        (w) => w.round === initialRound && !w.isClosed && !w.isNotYetOpen
+      )?.id ?? "",
   }));
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
-  const allClosed = workshopOptions.length === 0 || workshopOptions.every((w) => w.isClosed);
+  // 신청 불가 = 마감(정원/마감일) 또는 오픈 전(신청 예정)
+  const allUnavailable =
+    workshopOptions.length === 0 ||
+    workshopOptions.every((w) => w.isClosed || w.isNotYetOpen);
+  const allNotYetOpen =
+    workshopOptions.length > 0 && workshopOptions.every((w) => w.isNotYetOpen);
+  const allClosed =
+    workshopOptions.length > 0 && workshopOptions.every((w) => w.isClosed);
   const selectedWorkshop = workshopOptions.find((w) => w.id === form.workshopId);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -159,6 +170,16 @@ export function ApplicationForm({
         </p>
       </div>
 
+      {allNotYetOpen && (
+        <div
+          role="status"
+          className="rounded-lg border border-sky-300 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-800"
+        >
+          아직 신청 기간이 아닙니다. {formatDateTime(workshopOptions[0].applyOpenAt)}부터 신청할 수
+          있습니다.
+        </div>
+      )}
+
       {allClosed && (
         <div
           role="alert"
@@ -179,14 +200,16 @@ export function ApplicationForm({
               {...inputProps}
               className={inputBaseClass}
               value={form.workshopId}
-              disabled={allClosed}
+              disabled={allUnavailable}
               onChange={(e) => updateField("workshopId", e.target.value)}
             >
               <option value="">회차를 선택해 주세요</option>
               {workshopOptions.map((w) => (
-                <option key={w.id} value={w.id} disabled={w.isClosed}>
+                <option key={w.id} value={w.id} disabled={w.isClosed || w.isNotYetOpen}>
                   {`${w.round}차 - ${w.topic} (${formatDateRange(w.startAt, w.endAt)})`}
-                  {w.isClosed
+                  {w.isNotYetOpen
+                    ? " (신청 예정)"
+                    : w.isClosed
                     ? " (마감)"
                     : ` (잔여 ${w.remaining}명)`}
                 </option>
@@ -201,6 +224,9 @@ export function ApplicationForm({
               강사: {selectedWorkshop.instructor} · 장소: {selectedWorkshop.location}
             </p>
             <p>일시: {formatDateRange(selectedWorkshop.startAt, selectedWorkshop.endAt)}</p>
+            {selectedWorkshop.isNotYetOpen && (
+              <p>신청 시작: {formatDateTime(selectedWorkshop.applyOpenAt)}부터</p>
+            )}
             <p>신청 마감: {formatDateTime(selectedWorkshop.deadline)}까지</p>
           </div>
         )}
@@ -318,7 +344,7 @@ export function ApplicationForm({
           </p>
         )}
 
-        <Button type="submit" variant="primary" size="lg" className="w-full" disabled={submitting || allClosed}>
+        <Button type="submit" variant="primary" size="lg" className="w-full" disabled={submitting || allUnavailable}>
           {submitting ? "제출 중..." : "신청하기"}
         </Button>
       </form>

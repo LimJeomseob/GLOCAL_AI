@@ -9,7 +9,7 @@ import {
   type InstructorProfile,
   type WorkshopSeed,
 } from "@/lib/constants";
-import { formatDateRange } from "@/lib/format";
+import { formatDateRange, formatDateTime } from "@/lib/format";
 import { InstructorModal } from "@/components/InstructorModal";
 import { Button } from "@/components/ui/Button";
 
@@ -45,6 +45,7 @@ export function ProgramCards() {
           <ProgramCard
             key={w.round}
             workshop={w}
+            isNotYetOpen={now !== null && now < new Date(w.applyOpenAt).getTime()}
             isClosed={now !== null && now > new Date(w.deadline).getTime()}
             onOpenInstructor={openInstructor}
           />
@@ -60,10 +61,12 @@ export function ProgramCards() {
 
 function ProgramCard({
   workshop: w,
+  isNotYetOpen,
   isClosed,
   onOpenInstructor,
 }: {
   workshop: WorkshopSeed;
+  isNotYetOpen: boolean;
   isClosed: boolean;
   onOpenInstructor: (name: string) => void;
 }) {
@@ -81,10 +84,14 @@ function ProgramCard({
         <span
           className={clsx(
             "inline-flex items-center rounded-full px-3 py-1 text-xs font-bold",
-            isClosed ? "bg-slate-800 text-white" : "bg-emerald-100 text-emerald-700"
+            isNotYetOpen
+              ? "bg-sky-100 text-sky-700"
+              : isClosed
+              ? "bg-slate-800 text-white"
+              : "bg-emerald-100 text-emerald-700"
           )}
         >
-          {isClosed ? "마감" : "모집중"}
+          {isNotYetOpen ? "신청 예정" : isClosed ? "마감" : "모집중"}
         </span>
       </div>
 
@@ -150,7 +157,11 @@ function ProgramCard({
 
       <div className="mt-4 flex-1" aria-hidden="true" />
 
-      {isClosed ? (
+      {isNotYetOpen ? (
+        <Button type="button" disabled className="w-full">
+          {formatDateTime(w.applyOpenAt)} 오픈
+        </Button>
+      ) : isClosed ? (
         <Button type="button" disabled className="w-full">
           신청 마감
         </Button>

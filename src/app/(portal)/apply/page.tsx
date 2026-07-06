@@ -54,6 +54,7 @@ function ApplyContent() {
       const nextOptions: WorkshopOption[] = (workshops ?? []).map((workshop) => {
         const appliedCount = appliedCountByWorkshopId.get(workshop.id) ?? 0;
         const remaining = workshop.capacity - appliedCount;
+        const isNotYetOpen = now < new Date(workshop.apply_open_at).getTime();
         const isDeadlinePassed = now > new Date(workshop.deadline).getTime();
         const isClosed = remaining <= 0 || isDeadlinePassed;
 
@@ -66,7 +67,9 @@ function ApplyContent() {
           startAt: workshop.start_at,
           endAt: workshop.end_at,
           deadline: workshop.deadline,
+          applyOpenAt: workshop.apply_open_at,
           remaining,
+          isNotYetOpen,
           isClosed,
         };
       });
