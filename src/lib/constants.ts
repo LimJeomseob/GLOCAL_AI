@@ -213,6 +213,7 @@ export const INSTRUCTORS: InstructorProfile[] = [
     affiliation: "바이브코딩 · 업무자동화 전문 강사",
     rounds: [2, 5],
     career: [
+      "전) 국회 보좌관",
       "바이브코딩(클로드 코드 등) 강의",
       "자연어 업무 자동화 스크립트 강의",
       "데이터 분석·보고서 자동화 강의",
