@@ -51,3 +51,51 @@ export function exportRowsAsCsv<T>(rows: T[], columns: CsvColumn<T>[], filename:
   const csv = buildCsv(rows, columns);
   downloadCsv(filename, csv);
 }
+
+/**
+ * CSV 텍스트를 2차원 문자열 배열로 파싱한다(일괄 추가 업로드용).
+ * BOM 제거, CRLF/LF 혼용, 큰따옴표 셀("" 이스케이프, 셀 내 쉼표·줄바꿈) 처리.
+ * 완전히 빈 행은 결과에서 제외한다.
+ */
+export function parseCsv(text: string): string[][] {
+  const src = text.replace(/^﻿/, "");
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && src[i + 1] === "\n") i++;
+      row.push(cell);
+      cell = "";
+      rows.push(row);
+      row = [];
+    } else {
+      cell += ch;
+    }
+  }
+  if (cell !== "" || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+
+  return rows.filter((r) => r.some((c) => c.trim() !== ""));
+}
