@@ -6,6 +6,8 @@ export const PROGRAM_FULL_TITLE =
 export const ISSUER_NAME = "경상국립대학교 AI융합원장";
 export const ORG_NAME = "경상국립대학교";
 export const ORGANIZER_NAME = "경상국립대학교 AI 융합원";
+export const CONTACT_PHONE = "055-772-4857";
+export const CONTACT_EMAIL = "240907@gnu.ac.kr";
 
 export const APPLICATION_OPEN_AT = "2026-07-08T09:00:00+09:00";
 
