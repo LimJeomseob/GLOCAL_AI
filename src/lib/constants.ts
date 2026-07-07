@@ -6,6 +6,8 @@ export const PROGRAM_FULL_TITLE =
 export const ISSUER_NAME = "경상국립대학교 AI융합원장";
 export const ORG_NAME = "경상국립대학교";
 export const ORGANIZER_NAME = "경상국립대학교 AI 융합원";
+export const CONTACT_PHONE = "055-772-4857";
+export const CONTACT_EMAIL = "240907@gnu.ac.kr";
 
 export const APPLICATION_OPEN_AT = "2026-07-08T09:00:00+09:00";
 
@@ -38,8 +40,8 @@ export const WORKSHOP_SEEDS: WorkshopSeed[] = [
     instructor: "이성원",
     location: "경상국립대학교 4동 학술정보관 하이플렉스강의실",
     capacity: 30,
-    startAt: "2026-07-22T13:00:00+09:00",
-    endAt: "2026-07-22T17:00:00+09:00",
+    startAt: "2026-07-22T13:30:00+09:00",
+    endAt: "2026-07-22T17:30:00+09:00",
     deadline: "2026-07-20T13:00:00+09:00",
     applyOpenAt: APPLICATION_OPEN_AT,
     level: "초급",
@@ -66,7 +68,7 @@ export const WORKSHOP_SEEDS: WorkshopSeed[] = [
     instructor: "박용규",
     location: "경상국립대학교 4동 학술정보관 하이플렉스강의실",
     capacity: 30,
-    startAt: "2026-07-24T13:00:00+09:00",
+    startAt: "2026-07-24T13:30:00+09:00",
     endAt: "2026-07-24T17:00:00+09:00",
     deadline: "2026-07-22T13:00:00+09:00",
     applyOpenAt: APPLICATION_OPEN_AT,

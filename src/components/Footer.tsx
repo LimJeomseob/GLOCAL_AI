@@ -1,4 +1,10 @@
-import { ORG_NAME, ORGANIZER_NAME, PROGRAM_NAME } from "@/lib/constants";
+import {
+  CONTACT_EMAIL,
+  CONTACT_PHONE,
+  ORG_NAME,
+  ORGANIZER_NAME,
+  PROGRAM_NAME,
+} from "@/lib/constants";
 
 export function Footer() {
   return (
@@ -9,6 +15,9 @@ export function Footer() {
           2026학년도 「모두의 AI를 위한 7월 AI활용 특강」 · {PROGRAM_NAME}
         </p>
         <p className="mt-1">주관: {ORGANIZER_NAME}</p>
+        <p className="mt-1">
+          문의: {CONTACT_PHONE}, {CONTACT_EMAIL}
+        </p>
         <p className="mt-1">
           수집된 개인정보는 특강 신청·운영·수료증 발급 목적에만 사용되며, 운영 종료 후 관계
           법령에 따라 보관 후 파기됩니다.
