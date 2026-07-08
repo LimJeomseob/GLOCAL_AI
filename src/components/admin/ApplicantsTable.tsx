@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TABLES } from "@/lib/db-tables";
-import { PROGRAM_NAME } from "@/lib/constants";
 import { formatDateTime, formatDateRange } from "@/lib/format";
 import { exportRowsAsCsv } from "@/lib/csv";
 import { issueCertificatesForApplications } from "@/lib/issueCertificate";
@@ -14,6 +13,15 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { APPLICATION_STATUSES, type ApplicationStatus, type ApplicationWithWorkshop } from "@/lib/types";
 
 const STATUS_OPTIONS = APPLICATION_STATUSES;
+
+type KakaoNoticeField = "kakao_notice1_sent" | "kakao_notice2_sent" | "kakao_notice3_sent";
+
+/** 카톡 안내 발송 단계 체크 컬럼(1차 신청결과 안내 / 2차 수강안내 / 3차 최종수강안내) */
+const KAKAO_NOTICE_COLUMNS: { field: KakaoNoticeField; label: string }[] = [
+  { field: "kakao_notice1_sent", label: "1차 신청결과 안내" },
+  { field: "kakao_notice2_sent", label: "2차 수강안내" },
+  { field: "kakao_notice3_sent", label: "3차 최종수강안내" },
+];
 
 interface RowMessage {
   type: "success" | "error";
@@ -49,6 +57,7 @@ export function ApplicantsTable({
   const [rowLoading, setRowLoading] = useState<Record<string, boolean>>({});
   const [bulkMessage, setBulkMessage] = useState<RowMessage | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const rounds = useMemo(() => {
     const set = new Set<number>();
@@ -216,11 +225,58 @@ export function ApplicantsTable({
     }
   }
 
+  async function handleBulkDelete() {
+    setBulkMessage(null);
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    const ok = window.confirm(
+      `선택한 ${ids.length}건의 신청을 삭제할까요?\n삭제하면 해당 신청의 수료증 발급 이력도 함께 삭제되며 되돌릴 수 없습니다.`
+    );
+    if (!ok) return;
+
+    setDeleteLoading(true);
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase.from(TABLES.APPLICATIONS).delete().in("id", ids);
+      if (error) {
+        setBulkMessage({ type: "error", text: `삭제에 실패했습니다: ${error.message}` });
+        return;
+      }
+      setApplications((prev) => prev.filter((a) => !selectedIds.has(a.id)));
+      setSelectedIds(new Set());
+      setBulkMessage({ type: "success", text: `${ids.length}건이 삭제되었습니다.` });
+      router.refresh();
+    } catch (err) {
+      setBulkMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "네트워크 오류가 발생했습니다.",
+      });
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
+
+  async function handleNoticeToggle(id: string, field: KakaoNoticeField, next: boolean) {
+    setRowMessage(id, null);
+    // 낙관적 갱신 후 실패 시 롤백
+    setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, [field]: next } : a)));
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase
+      .from(TABLES.APPLICATIONS)
+      .update({ [field]: next })
+      .eq("id", id);
+    if (error) {
+      setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, [field]: !next } : a)));
+      setRowMessage(id, { type: "error", text: `발송 체크 저장 실패: ${error.message}` });
+    }
+  }
+
   function handleExportCsv() {
     exportRowsAsCsv(
       filtered,
       [
-        { header: "프로그램명", accessor: () => PROGRAM_NAME },
+        { header: "프로그램명", accessor: (a: ApplicationWithWorkshop) => a.workshop.topic },
         { header: "신청일", accessor: (a: ApplicationWithWorkshop) => formatDateTime(a.created_at) },
         {
           header: "프로그램 일시",
@@ -238,6 +294,10 @@ export function ApplicantsTable({
           header: "수료증 발급여부",
           accessor: (a: ApplicationWithWorkshop) => (a.cert_issued ? "발급완료" : "미발급"),
         },
+        ...KAKAO_NOTICE_COLUMNS.map(({ field, label }) => ({
+          header: label,
+          accessor: (a: ApplicationWithWorkshop) => (a[field] ? "발송" : "미발송"),
+        })),
         {
           header: "관리자에 의한 신청",
           accessor: (a: ApplicationWithWorkshop) => (a.created_by_admin ? "예" : "아니오"),
@@ -318,6 +378,15 @@ export function ApplicantsTable({
           >
             {bulkLoading ? "발급 처리 중..." : "선택 항목 일괄발급"}
           </Button>
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            onClick={handleBulkDelete}
+            disabled={deleteLoading || selectedIds.size === 0}
+          >
+            {deleteLoading ? "삭제 중..." : "선택 항목 삭제"}
+          </Button>
         </div>
       </div>
 
@@ -340,11 +409,11 @@ export function ApplicantsTable({
       </p>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-card">
-        <table className="w-full min-w-[1400px] border-collapse text-left text-sm">
+        <table className="w-full table-fixed border-collapse text-left text-xs">
           <caption className="sr-only">신청자 목록 및 상태·수료증 관리 테이블</caption>
           <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
             <tr>
-              <th scope="col" className="px-3 py-3">
+              <th scope="col" rowSpan={2} className="w-8 px-2 py-2 align-bottom">
                 <input
                   type="checkbox"
                   aria-label="현재 목록 전체 선택"
@@ -352,42 +421,56 @@ export function ApplicantsTable({
                   onChange={toggleSelectAllFiltered}
                 />
               </th>
-              <th scope="col" className="px-3 py-3">
+              <th scope="col" rowSpan={2} className="px-2 py-2 align-bottom">
                 프로그램명
               </th>
-              <th scope="col" className="px-3 py-3">
+              <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
                 신청일
               </th>
-              <th scope="col" className="px-3 py-3">
+              <th scope="col" rowSpan={2} className="w-28 px-2 py-2 align-bottom">
                 프로그램 일시
               </th>
-              <th scope="col" className="px-3 py-3">
+              <th scope="col" rowSpan={2} className="w-14 px-2 py-2 align-bottom">
                 성명
               </th>
-              <th scope="col" className="px-3 py-3">
+              <th scope="col" rowSpan={2} className="px-2 py-2 align-bottom">
                 소속
               </th>
-              <th scope="col" className="px-3 py-3">
+              <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
                 교번/직번/학번/생년월일
               </th>
-              <th scope="col" className="px-3 py-3">
+              <th scope="col" rowSpan={2} className="w-24 px-2 py-2 align-bottom">
                 연락처
               </th>
-              <th scope="col" className="px-3 py-3">
+              <th scope="col" rowSpan={2} className="px-2 py-2 align-bottom">
                 이메일
               </th>
-              <th scope="col" className="px-3 py-3">
+              <th scope="col" rowSpan={2} className="w-24 px-2 py-2 align-bottom">
                 상태
               </th>
-              <th scope="col" className="px-3 py-3">
+              <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
                 이수처리
               </th>
-              <th scope="col" className="px-3 py-3">
+              <th scope="col" rowSpan={2} className="w-28 px-2 py-2 align-bottom">
                 수료증
               </th>
-              <th scope="col" className="px-3 py-3">
+              <th scope="colgroup" colSpan={3} className="px-1 py-1 text-center">
+                카톡 안내 발송
+              </th>
+              <th scope="col" rowSpan={2} className="w-16 px-2 py-2 align-bottom">
                 관리자 신청
               </th>
+            </tr>
+            <tr>
+              {KAKAO_NOTICE_COLUMNS.map(({ field, label }) => (
+                <th
+                  key={field}
+                  scope="col"
+                  className="w-12 break-keep px-1 py-1 text-center text-[10px] leading-tight"
+                >
+                  {label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -396,7 +479,7 @@ export function ApplicantsTable({
               const message = rowMessages[a.id];
               return (
                 <tr key={a.id} className="align-top">
-                  <td className="px-3 py-3">
+                  <td className="px-2 py-2">
                     <input
                       type="checkbox"
                       aria-label={`${a.name} 신청 건 선택`}
@@ -404,19 +487,19 @@ export function ApplicantsTable({
                       onChange={() => toggleSelect(a.id)}
                     />
                   </td>
-                  <td className="px-3 py-3 text-slate-700">{PROGRAM_NAME}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-slate-700">
-                    {formatDateTime(a.created_at)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-slate-700">
+                  <td className="break-keep px-2 py-2 text-slate-700">{a.workshop.topic}</td>
+                  <td className="px-2 py-2 text-slate-700">{formatDateTime(a.created_at)}</td>
+                  <td className="px-2 py-2 text-slate-700">
                     {a.workshop.round}차 · {formatDateRange(a.workshop.start_at, a.workshop.end_at)}
                   </td>
-                  <td className="px-3 py-3 font-semibold text-slate-800">{a.name}</td>
-                  <td className="px-3 py-3 text-slate-700">{a.affiliation}</td>
-                  <td className="px-3 py-3 text-slate-700">{a.id_number}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-slate-700">{a.phone}</td>
-                  <td className="px-3 py-3 text-slate-700">{a.email}</td>
-                  <td className="px-3 py-3">
+                  <td className="whitespace-nowrap px-2 py-2 font-semibold text-slate-800">
+                    {a.name}
+                  </td>
+                  <td className="break-keep px-2 py-2 text-slate-700">{a.affiliation}</td>
+                  <td className="break-all px-2 py-2 text-slate-700">{a.id_number}</td>
+                  <td className="whitespace-nowrap px-2 py-2 text-slate-700">{a.phone}</td>
+                  <td className="break-all px-2 py-2 text-slate-700">{a.email}</td>
+                  <td className="px-2 py-2">
                     <div className="flex flex-col gap-2">
                       <StatusBadge status={a.status} />
                       <select
@@ -426,7 +509,7 @@ export function ApplicantsTable({
                         onChange={(e) =>
                           handleStatusChange(a.id, e.target.value as ApplicationStatus)
                         }
-                        className="rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-accent"
+                        className="w-full rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-accent"
                       >
                         {STATUS_OPTIONS.map((s) => (
                           <option key={s} value={s}>
@@ -436,7 +519,7 @@ export function ApplicantsTable({
                       </select>
                     </div>
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-2 py-2">
                     <Button
                       type="button"
                       variant={a.status === "이수" ? "secondary" : "outline"}
@@ -448,7 +531,7 @@ export function ApplicantsTable({
                       이수처리
                     </Button>
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-2 py-2">
                     <div className="flex flex-col gap-2">
                       <BoolBadge value={a.cert_issued} trueLabel="발급완료" falseLabel="미발급" />
                       {a.status === "이수" && (
@@ -491,7 +574,17 @@ export function ApplicantsTable({
                       )}
                     </div>
                   </td>
-                  <td className="px-3 py-3">
+                  {KAKAO_NOTICE_COLUMNS.map(({ field, label }) => (
+                    <td key={field} className="px-1 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        aria-label={`${a.name} ${label} 발송 여부`}
+                        checked={a[field]}
+                        onChange={(e) => handleNoticeToggle(a.id, field, e.target.checked)}
+                      />
+                    </td>
+                  ))}
+                  <td className="px-2 py-2">
                     <BoolBadge value={a.created_by_admin} trueLabel="관리자 신청" falseLabel="본인 신청" />
                   </td>
                 </tr>
@@ -499,7 +592,7 @@ export function ApplicantsTable({
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={13} className="px-3 py-8 text-center text-sm text-slate-500">
+                <td colSpan={16} className="px-3 py-8 text-center text-sm text-slate-500">
                   조건에 맞는 신청 내역이 없습니다.
                 </td>
               </tr>

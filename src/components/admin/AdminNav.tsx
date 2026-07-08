@@ -14,7 +14,7 @@ export function AdminNav() {
 
   return (
     <nav aria-label="관리자 포털 탭 메뉴" className="border-b border-slate-200 bg-white">
-      <ul className="mx-auto flex max-w-6xl overflow-x-auto px-2 sm:px-6" role="list">
+      <ul className="mx-auto flex max-w-[1600px] overflow-x-auto px-2 sm:px-6" role="list">
         {ADMIN_TABS.map((tab) => {
           const isActive = pathname.startsWith(tab.href);
           return (
