@@ -49,6 +49,9 @@ export interface Application {
   consent: boolean;
   status: ApplicationStatus;
   cert_issued: boolean;
+  kakao_notice1_sent: boolean;
+  kakao_notice2_sent: boolean;
+  kakao_notice3_sent: boolean;
   created_by_admin: boolean;
   created_at: string;
 }
