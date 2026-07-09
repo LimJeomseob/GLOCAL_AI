@@ -36,6 +36,89 @@ function BoolBadge({ value, trueLabel, falseLabel }: { value: boolean; trueLabel
   );
 }
 
+interface ColumnFilters {
+  topic: string;
+  name: string;
+  affiliation: string;
+  idNumber: string;
+  phone: string;
+  email: string;
+  certIssued: "전체" | "발급완료" | "미발급";
+  createdByAdmin: "전체" | "관리자 신청" | "본인 신청";
+}
+
+const INITIAL_COLUMN_FILTERS: ColumnFilters = {
+  topic: "",
+  name: "",
+  affiliation: "",
+  idNumber: "",
+  phone: "",
+  email: "",
+  certIssued: "전체",
+  createdByAdmin: "전체",
+};
+
+type NoticeFilterValue = "전체" | "발송" | "미발송";
+type NoticeFilters = Record<KakaoNoticeField, NoticeFilterValue>;
+
+function buildInitialNoticeFilters(): NoticeFilters {
+  return Object.fromEntries(
+    KAKAO_NOTICE_COLUMNS.map(({ field }) => [field, "전체" as NoticeFilterValue])
+  ) as NoticeFilters;
+}
+
+/** 헤더 내부에 얹는 소형 텍스트 필터 입력 */
+function HeaderTextFilter({
+  value,
+  onChange,
+  placeholder,
+  label,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  placeholder?: string;
+  label: string;
+}) {
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder ?? "필터"}
+      aria-label={`${label} 필터`}
+      className="w-full min-w-0 rounded border border-slate-300 bg-white px-1.5 py-1 text-[11px] font-normal normal-case text-slate-700 placeholder:text-slate-400 focus:border-accent"
+    />
+  );
+}
+
+/** 헤더 내부에 얹는 소형 드롭다운 필터 */
+function HeaderSelectFilter<T extends string>({
+  value,
+  onChange,
+  options,
+  label,
+}: {
+  value: T;
+  onChange: (next: T) => void;
+  options: readonly T[];
+  label: string;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value as T)}
+      aria-label={`${label} 필터`}
+      className="w-full min-w-0 rounded border border-slate-300 bg-white px-1 py-1 text-[11px] font-normal normal-case text-slate-700 focus:border-accent"
+    >
+      {options.map((opt) => (
+        <option key={opt} value={opt}>
+          {opt}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function ApplicantsTable({
   initialApplications,
 }: {
@@ -46,6 +129,8 @@ export function ApplicantsTable({
   const [roundFilter, setRoundFilter] = useState<string>("전체");
   const [statusFilter, setStatusFilter] = useState<string>("전체");
   const [search, setSearch] = useState("");
+  const [columnFilters, setColumnFilters] = useState<ColumnFilters>(INITIAL_COLUMN_FILTERS);
+  const [noticeFilters, setNoticeFilters] = useState<NoticeFilters>(buildInitialNoticeFilters);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [rowMessages, setRowMessages] = useState<Record<string, RowMessage>>({});
   const [rowLoading, setRowLoading] = useState<Record<string, boolean>>({});
@@ -61,6 +146,13 @@ export function ApplicantsTable({
 
   const filtered = useMemo(() => {
     const keyword = search.trim().toLowerCase();
+    const topicKw = columnFilters.topic.trim().toLowerCase();
+    const nameKw = columnFilters.name.trim().toLowerCase();
+    const affiliationKw = columnFilters.affiliation.trim().toLowerCase();
+    const idNumberKw = columnFilters.idNumber.trim().toLowerCase();
+    const phoneKw = columnFilters.phone.trim().toLowerCase();
+    const emailKw = columnFilters.email.trim().toLowerCase();
+
     return applications.filter((a) => {
       if (roundFilter !== "전체" && String(a.workshop.round) !== roundFilter) return false;
       if (statusFilter !== "전체" && a.status !== statusFilter) return false;
@@ -68,9 +160,45 @@ export function ApplicantsTable({
         const haystack = `${a.name} ${a.email} ${a.phone}`.toLowerCase();
         if (!haystack.includes(keyword)) return false;
       }
+      if (topicKw && !a.workshop.topic.toLowerCase().includes(topicKw)) return false;
+      if (nameKw && !a.name.toLowerCase().includes(nameKw)) return false;
+      if (affiliationKw && !a.affiliation.toLowerCase().includes(affiliationKw)) return false;
+      if (idNumberKw && !a.id_number.toLowerCase().includes(idNumberKw)) return false;
+      if (phoneKw && !a.phone.toLowerCase().includes(phoneKw)) return false;
+      if (emailKw && !a.email.toLowerCase().includes(emailKw)) return false;
+      if (columnFilters.certIssued !== "전체") {
+        const wantIssued = columnFilters.certIssued === "발급완료";
+        if (a.cert_issued !== wantIssued) return false;
+      }
+      if (columnFilters.createdByAdmin !== "전체") {
+        const wantAdmin = columnFilters.createdByAdmin === "관리자 신청";
+        if (a.created_by_admin !== wantAdmin) return false;
+      }
+      for (const { field } of KAKAO_NOTICE_COLUMNS) {
+        const want = noticeFilters[field];
+        if (want !== "전체" && a[field] !== (want === "발송")) return false;
+      }
       return true;
     });
-  }, [applications, roundFilter, statusFilter, search]);
+  }, [applications, roundFilter, statusFilter, search, columnFilters, noticeFilters]);
+
+  function updateColumnFilter<K extends keyof ColumnFilters>(key: K, value: ColumnFilters[K]) {
+    setColumnFilters((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function updateNoticeFilter(field: KakaoNoticeField, value: NoticeFilterValue) {
+    setNoticeFilters((prev) => ({ ...prev, [field]: value }));
+  }
+
+  const hasActiveColumnFilters =
+    (Object.keys(columnFilters) as (keyof ColumnFilters)[]).some(
+      (key) => columnFilters[key] !== INITIAL_COLUMN_FILTERS[key]
+    ) || Object.values(noticeFilters).some((v) => v !== "전체");
+
+  function resetColumnFilters() {
+    setColumnFilters(INITIAL_COLUMN_FILTERS);
+    setNoticeFilters(buildInitialNoticeFilters());
+  }
 
   function setRowMessage(id: string, message: RowMessage | null) {
     setRowMessages((prev) => {
@@ -360,6 +488,11 @@ export function ApplicantsTable({
         </div>
 
         <div className="flex gap-2">
+          {hasActiveColumnFilters && (
+            <Button type="button" variant="outline" size="sm" onClick={resetColumnFilters}>
+              표 필터 초기화
+            </Button>
+          )}
           <Button type="button" variant="outline" size="sm" onClick={handleExportCsv}>
             엑셀 내보내기
           </Button>
@@ -416,7 +549,14 @@ export function ApplicantsTable({
                 />
               </th>
               <th scope="col" rowSpan={2} className="px-2 py-2 align-bottom">
-                프로그램명
+                <div className="flex flex-col gap-1">
+                  <span>프로그램명</span>
+                  <HeaderTextFilter
+                    label="프로그램명"
+                    value={columnFilters.topic}
+                    onChange={(v) => updateColumnFilter("topic", v)}
+                  />
+                </div>
               </th>
               <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
                 신청일
@@ -424,20 +564,55 @@ export function ApplicantsTable({
               <th scope="col" rowSpan={2} className="w-28 px-2 py-2 align-bottom">
                 프로그램 일시
               </th>
-              <th scope="col" rowSpan={2} className="w-14 px-2 py-2 align-bottom">
-                성명
+              <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
+                <div className="flex flex-col gap-1">
+                  <span>성명</span>
+                  <HeaderTextFilter
+                    label="성명"
+                    value={columnFilters.name}
+                    onChange={(v) => updateColumnFilter("name", v)}
+                  />
+                </div>
               </th>
               <th scope="col" rowSpan={2} className="px-2 py-2 align-bottom">
-                소속
+                <div className="flex flex-col gap-1">
+                  <span>소속</span>
+                  <HeaderTextFilter
+                    label="소속"
+                    value={columnFilters.affiliation}
+                    onChange={(v) => updateColumnFilter("affiliation", v)}
+                  />
+                </div>
               </th>
               <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
-                교번/직번/학번/생년월일
+                <div className="flex flex-col gap-1">
+                  <span>교번/직번/학번/생년월일</span>
+                  <HeaderTextFilter
+                    label="교번/직번/학번/생년월일"
+                    value={columnFilters.idNumber}
+                    onChange={(v) => updateColumnFilter("idNumber", v)}
+                  />
+                </div>
               </th>
               <th scope="col" rowSpan={2} className="w-24 px-2 py-2 align-bottom">
-                연락처
+                <div className="flex flex-col gap-1">
+                  <span>연락처</span>
+                  <HeaderTextFilter
+                    label="연락처"
+                    value={columnFilters.phone}
+                    onChange={(v) => updateColumnFilter("phone", v)}
+                  />
+                </div>
               </th>
               <th scope="col" rowSpan={2} className="px-2 py-2 align-bottom">
-                이메일
+                <div className="flex flex-col gap-1">
+                  <span>이메일</span>
+                  <HeaderTextFilter
+                    label="이메일"
+                    value={columnFilters.email}
+                    onChange={(v) => updateColumnFilter("email", v)}
+                  />
+                </div>
               </th>
               <th scope="col" rowSpan={2} className="w-24 px-2 py-2 align-bottom">
                 상태
@@ -446,13 +621,29 @@ export function ApplicantsTable({
                 이수처리
               </th>
               <th scope="col" rowSpan={2} className="w-28 px-2 py-2 align-bottom">
-                수료증
+                <div className="flex flex-col gap-1">
+                  <span>수료증</span>
+                  <HeaderSelectFilter
+                    label="수료증"
+                    value={columnFilters.certIssued}
+                    onChange={(v) => updateColumnFilter("certIssued", v)}
+                    options={["전체", "발급완료", "미발급"] as const}
+                  />
+                </div>
               </th>
               <th scope="colgroup" colSpan={3} className="px-1 py-1 text-center">
                 카톡 안내 발송
               </th>
-              <th scope="col" rowSpan={2} className="w-16 px-2 py-2 align-bottom">
-                관리자 신청
+              <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
+                <div className="flex flex-col gap-1">
+                  <span>관리자 신청</span>
+                  <HeaderSelectFilter
+                    label="관리자 신청"
+                    value={columnFilters.createdByAdmin}
+                    onChange={(v) => updateColumnFilter("createdByAdmin", v)}
+                    options={["전체", "관리자 신청", "본인 신청"] as const}
+                  />
+                </div>
               </th>
             </tr>
             <tr>
@@ -460,9 +651,17 @@ export function ApplicantsTable({
                 <th
                   key={field}
                   scope="col"
-                  className="w-12 break-keep px-1 py-1 text-center text-[10px] leading-tight"
+                  className="w-16 break-keep px-1 py-1 text-center text-[10px] leading-tight"
                 >
-                  {label}
+                  <div className="flex flex-col items-center gap-1">
+                    <span>{label}</span>
+                    <HeaderSelectFilter
+                      label={label}
+                      value={noticeFilters[field]}
+                      onChange={(v) => updateNoticeFilter(field, v)}
+                      options={["전체", "발송", "미발송"] as const}
+                    />
+                  </div>
                 </th>
               ))}
             </tr>
