@@ -5,6 +5,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TABLES } from "@/lib/db-tables";
 import type { ApplicationWithWorkshop, KakaoAutoSendSettings, KakaoNotification } from "@/lib/types";
 import { ApplicantsTable } from "@/components/admin/ApplicantsTable";
+import { ApplicantsDashboard } from "@/components/admin/ApplicantsDashboard";
 import { KakaoSettingsPanel } from "@/components/admin/KakaoSettingsPanel";
 
 interface LoadedState {
@@ -96,6 +97,8 @@ export default function AdminApplicantsPage() {
             initialNotifications={state.kakaoNotifications}
             applications={state.applications}
           />
+
+          <ApplicantsDashboard applications={state.applications} />
 
           <ApplicantsTable initialApplications={state.applications} />
         </>
