@@ -1,9 +1,10 @@
 "use client";
 
-import { ISSUER_NAME, ORG_NAME, PROGRAM_NAME } from "@/lib/constants";
-import { formatDate, formatDateRange } from "@/lib/format";
+import { PROGRAM_NAME } from "@/lib/constants";
+import { formatCertIssueDate, formatCertPeriod } from "@/lib/format";
+import type { CertificateTemplate } from "@/lib/types";
 
-// 이 앱은 완전 정적(GitHub Pages) 배포라 서버가 없다. 수료증 PDF는 관리자의
+// 이 앱은 완전 정적(GitHub Pages) 배포라 서버가 없다. 수료증 PDF는 발급하는 사람의
 // 브라우저에서 생성한다(pdf-lib/@pdf-lib/fontkit는 브라우저 환경이 1급 지원 대상이다).
 // Supabase Edge Function(Deno)에서는 fontkit이 내부적으로 Object.prototype.__proto__
 // 조작에 의존하는 부분이 있어 Deno의 보안 기본값과 충돌해 런타임에 실패하는 것을
@@ -25,7 +26,22 @@ async function loadFonts() {
   return cachedFonts;
 }
 
-export interface CertificatePdfInput {
+/** data URL(base64)에서 바이너리 본문만 디코딩한다. */
+function dataUrlToBytes(dataUrl: string): Uint8Array {
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const value = parseInt(hex.replace("#", ""), 16);
+  return { r: ((value >> 16) & 255) / 255, g: ((value >> 8) & 255) / 255, b: (value & 255) / 255 };
+}
+
+/** 수료증 서식의 치환 변수 값 묶음 — 관리자 발급·공개 발급 탭이 동일하게 사용한다. */
+export function buildCertificateValues(input: {
   certNo: string;
   name: string;
   affiliation: string;
@@ -34,12 +50,31 @@ export interface CertificatePdfInput {
   startAt: string;
   endAt: string;
   issuedAt: string;
+}): Record<string, string> {
+  return {
+    발급번호: input.certNo,
+    성명: input.name,
+    소속: input.affiliation,
+    프로그램명: `${PROGRAM_NAME} ${input.round}차(${input.topic})`,
+    기간: formatCertPeriod(input.startAt, input.endAt),
+    발급일: formatCertIssueDate(input.issuedAt),
+  };
 }
 
-/** PRD §6.4 — AI융합원장 명의 수료증 PDF를 관리자 브라우저에서 생성한다 */
-export async function generateCertificatePdf(input: CertificatePdfInput): Promise<Uint8Array> {
+function substitute(text: string, values: Record<string, string>): string {
+  return text.replace(/\{([^{}]+)\}/g, (whole, key: string) => values[key] ?? whole);
+}
+
+/**
+ * DB(certificate_templates)에 저장된 서식 JSON으로 수료증 PDF를 생성한다.
+ * 원본 서식 PDF와 동일하게 이미지(테두리 프레임 → 직인)를 먼저, 텍스트를 나중에 그린다.
+ */
+export async function renderCertificateFromTemplate(
+  template: CertificateTemplate,
+  values: Record<string, string>
+): Promise<Uint8Array> {
   // pdf-lib/@pdf-lib/fontkit는 발급 버튼을 실제로 누를 때만 필요하므로 동적 import로
-  // 분리해 /admin/applicants 초기 번들에 포함되지 않도록 한다.
+  // 분리해 초기 번들에 포함되지 않도록 한다.
   const [{ PDFDocument, rgb }, { default: fontkit }, fonts] = await Promise.all([
     import("pdf-lib"),
     import("@pdf-lib/fontkit"),
@@ -52,65 +87,38 @@ export async function generateCertificatePdf(input: CertificatePdfInput): Promis
   const regularFont = await pdfDoc.embedFont(fonts.regular, { subset: true });
   const boldFont = await pdfDoc.embedFont(fonts.bold, { subset: true });
 
-  const page = pdfDoc.addPage([841.89, 595.28]); // A4 landscape
-  const { width, height } = page.getSize();
-  const brand = rgb(0x00 / 255, 0x38 / 255, 0x76 / 255);
-  const ink = rgb(0.15, 0.15, 0.15);
+  const page = pdfDoc.addPage([template.page.width, template.page.height]);
 
-  page.drawRectangle({
-    x: 24,
-    y: 24,
-    width: width - 48,
-    height: height - 48,
-    borderColor: brand,
-    borderWidth: 3,
-  });
-  page.drawRectangle({
-    x: 34,
-    y: 34,
-    width: width - 68,
-    height: height - 68,
-    borderColor: brand,
-    borderWidth: 1,
-  });
-
-  const centerText = (text: string, y: number, font = regularFont, size = 12, color = ink) => {
-    const textWidth = font.widthOfTextAtSize(text, size);
-    page.drawText(text, { x: (width - textWidth) / 2, y, size, font, color });
-  };
-
-  centerText("수 료 증", height - 120, boldFont, 40, brand);
-  centerText(`수료번호  ${input.certNo}`, height - 165, regularFont, 13);
-
-  let cursorY = height - 230;
-  const lineGap = 34;
-
-  centerText(`소  속 : ${input.affiliation}`, cursorY, regularFont, 15);
-  cursorY -= lineGap;
-  centerText(`성  명 : ${input.name}`, cursorY, boldFont, 18);
-  cursorY -= lineGap + 10;
-
-  const bodyLines = [
-    `위 사람은 경상국립대학교 글로컬대학30 사업 「모두의 AI를 위한 7월 AI활용 특강」`,
-    `『${PROGRAM_NAME}』 ${input.round}차(${input.topic}) 과정을`,
-    `모든 과정을 이수하였음을 증명합니다.`,
-  ];
-  for (const line of bodyLines) {
-    centerText(line, cursorY, regularFont, 13.5);
-    cursorY -= 24;
+  for (const image of template.images) {
+    const embedded = await pdfDoc.embedJpg(dataUrlToBytes(image.dataUrl));
+    page.drawImage(embedded, { x: image.x, y: image.y, width: image.w, height: image.h });
   }
 
-  cursorY -= 16;
-  centerText(`운영일시 : ${formatDateRange(input.startAt, input.endAt)}`, cursorY, regularFont, 12);
-  cursorY -= 22;
-  centerText(`발급일 : ${formatDate(input.issuedAt)}`, cursorY, regularFont, 12);
+  for (const item of template.texts) {
+    const text = substitute(item.text, values);
+    if (!text) continue;
 
-  centerText(ORG_NAME, 110, boldFont, 15, brand);
-  centerText(ISSUER_NAME, 82, boldFont, 20, brand);
+    const font = item.weight === "bold" ? boldFont : regularFont;
+    let size = item.size;
+    // maxWidth 지정 시(소속·프로그램명 등 가변 길이 값) 폭에 맞을 때까지 크기를 줄인다.
+    if (item.maxWidth) {
+      while (size > 6 && font.widthOfTextAtSize(text, size) > item.maxWidth) {
+        size -= 0.5;
+      }
+    }
+
+    const x =
+      item.align === "center"
+        ? (template.page.width - font.widthOfTextAtSize(text, size)) / 2
+        : (item.x ?? 0);
+    const { r, g, b } = hexToRgb(item.color ?? "#000000");
+    page.drawText(text, { x, y: item.y, size, font, color: rgb(r, g, b) });
+  }
 
   return pdfDoc.save();
 }
 
+/** 스토리지 키는 ASCII만 허용되므로 발급번호에서 숫자·하이픈만 남긴다 (제2026-001호 → 2026-001) */
 export function buildCertificatePdfPath(round: number, certNo: string): string {
-  return `${round}/${certNo}.pdf`;
+  return `${round}/${certNo.replace(/[^0-9A-Za-z-]/g, "")}.pdf`;
 }

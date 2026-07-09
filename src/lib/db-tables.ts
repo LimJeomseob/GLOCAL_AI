@@ -7,6 +7,7 @@ export const TABLES = {
   APPLICATIONS: "applications",
   SURVEY: "LAWdata",
   CERTIFICATES: "certificates",
+  CERTIFICATE_TEMPLATES: "certificate_templates",
   ADMIN_USERS: "admin_users",
   KAKAO_NOTIFICATIONS: "kakao_notifications",
   KAKAO_SEND_SETTINGS: "kakao_send_settings",
