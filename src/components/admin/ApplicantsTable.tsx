@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TABLES } from "@/lib/db-tables";
+import { KAKAO_NOTICE_COLUMNS } from "@/lib/constants";
 import { formatDateTime, formatDateRange } from "@/lib/format";
 import { exportRowsAsCsv } from "@/lib/csv";
 import { issueCertificatesForApplications } from "@/lib/issueCertificate";
@@ -14,14 +15,7 @@ import { APPLICATION_STATUSES, type ApplicationStatus, type ApplicationWithWorks
 
 const STATUS_OPTIONS = APPLICATION_STATUSES;
 
-type KakaoNoticeField = "kakao_notice1_sent" | "kakao_notice2_sent" | "kakao_notice3_sent";
-
-/** 카톡 안내 발송 단계 체크 컬럼(1차 신청결과 안내 / 2차 수강안내 / 3차 최종수강안내) */
-const KAKAO_NOTICE_COLUMNS: { field: KakaoNoticeField; label: string }[] = [
-  { field: "kakao_notice1_sent", label: "1차 신청결과 안내" },
-  { field: "kakao_notice2_sent", label: "2차 수강안내" },
-  { field: "kakao_notice3_sent", label: "3차 최종수강안내" },
-];
+type KakaoNoticeField = (typeof KAKAO_NOTICE_COLUMNS)[number]["field"];
 
 interface RowMessage {
   type: "success" | "error";
