@@ -84,7 +84,52 @@ export interface Certificate {
   issuer: string;
   issued_at: string;
   reissue_count: number;
-  pdf_path: string;
+  pdf_path: string | null;
+  issued_channel: "admin" | "public";
+}
+
+/** certificate_templates.template — 수료증 서식 PDF를 변환한 JSON(이미지 base64 보존) */
+export interface CertificateTemplateImage {
+  key: string;
+  dataUrl: string; // data:image/jpeg;base64,...
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface CertificateTemplateText {
+  key: string;
+  text: string; // {발급번호}{성명}{소속}{프로그램명}{기간}{발급일} 치환 변수 지원
+  x?: number; // align 'left'일 때 사용
+  y: number; // 하단 기준 베이스라인(pt)
+  size: number;
+  weight?: "regular" | "bold";
+  align?: "left" | "center";
+  color?: string; // hex, 기본 #000000
+  maxWidth?: number; // 지정 시 폭에 맞을 때까지 글자 크기 자동 축소
+}
+
+export interface CertificateTemplate {
+  version: number;
+  page: { width: number; height: number };
+  images: CertificateTemplateImage[];
+  texts: CertificateTemplateText[];
+}
+
+/** POST supabase.functions.invoke("issue-certificate") 응답 (Edge Function과 동일 shape) */
+export interface IssueCertificateResponse {
+  certNo: string;
+  issuedAt: string;
+  reissueCount: number;
+  name: string;
+  affiliation: string;
+  round: number;
+  topic: string;
+  startAt: string;
+  endAt: string;
+  template: CertificateTemplate;
+  upload: { path: string; token: string };
 }
 
 /** POST supabase.functions.invoke("lookup") 응답의 각 항목 (Edge Function과 동일한 shape 유지) */

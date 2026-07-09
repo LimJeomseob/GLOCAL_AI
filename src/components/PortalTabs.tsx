@@ -9,6 +9,7 @@ const TABS = [
   { href: "/apply", label: "신청" },
   { href: "/lookup", label: "신청내역조회" },
   { href: "/survey", label: "만족도조사" },
+  { href: "/certificate", label: "수료증 발급" },
 ];
 
 export function PortalTabs() {
