@@ -9,10 +9,14 @@ import type { CertificateTemplate } from "@/lib/types";
 // Supabase Edge Function(Deno)에서는 fontkit이 내부적으로 Object.prototype.__proto__
 // 조작에 의존하는 부분이 있어 Deno의 보안 기본값과 충돌해 런타임에 실패하는 것을
 // 실제 배포 전 스모크 테스트로 확인했다 — 그래서 브라우저 실행으로 우회한다.
-const FONT_REGULAR_URL =
-  "https://fonts.gstatic.com/s/notosanskr/v39/PbyxFmXiEBPT4ITbgNA5Cgms3VYcOA-vvnIzzuoyeLQ.ttf";
-const FONT_BOLD_URL =
-  "https://fonts.gstatic.com/s/notosanskr/v39/PbyxFmXiEBPT4ITbgNA5Cgms3VYcOA-vvnIzzg01eLQ.ttf";
+//
+// 폰트는 반드시 public/fonts/의 가공본(scripts/process_cert_fonts.py 산출물)을 쓴다.
+// @pdf-lib/fontkit의 TTFSubset은 홀수 길이 글리프 뒤에 패딩을 넣지 않아 short-loca
+// 서브셋이 1바이트씩 밀리며 글자가 깨진다 — 가공본은 모든 글리프를 짝수 길이로
+// 패딩(glyf.padding=2)해 이 버그를 원천 회피한다. 원본 CDN TTF를 그대로 쓰면 안 된다.
+const FONT_BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+const FONT_REGULAR_URL = `${FONT_BASE}/fonts/NotoSansKR-Regular-Cert.ttf`;
+const FONT_BOLD_URL = `${FONT_BASE}/fonts/NotoSansKR-Bold-Cert.ttf`;
 
 let cachedFonts: { regular: ArrayBuffer; bold: ArrayBuffer } | null = null;
 
