@@ -1,5 +1,18 @@
+"use client";
+
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { SurveyForm } from "@/components/SurveyForm";
 import { WORKSHOP_SEEDS } from "@/lib/constants";
+
+function SurveyContent() {
+  // 수료증 발급 완료 팝업 "만족도조사 참여하기"(/survey?round=N)로 진입 시 해당 회차를 자동 선택
+  const searchParams = useSearchParams();
+  const roundParam = Number(searchParams.get("round"));
+  const initialRound = Number.isInteger(roundParam) && roundParam > 0 ? roundParam : undefined;
+
+  return <SurveyForm workshopSeeds={WORKSHOP_SEEDS} initialRound={initialRound} />;
+}
 
 export default function SurveyPage() {
   return (
@@ -12,7 +25,9 @@ export default function SurveyPage() {
         </p>
       </div>
 
-      <SurveyForm workshopSeeds={WORKSHOP_SEEDS} />
+      <Suspense>
+        <SurveyContent />
+      </Suspense>
     </div>
   );
 }

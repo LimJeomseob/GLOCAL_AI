@@ -6,6 +6,7 @@ import { lookupSchema } from "@/lib/validation";
 import { FormField, inputBaseClass } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { SurveyPromptModal } from "@/components/SurveyPromptModal";
 import { formatDateRange } from "@/lib/format";
 import {
   isApplicationStatus,
@@ -63,6 +64,7 @@ export function CertificateIssueForm() {
   const [verified, setVerified] = useState<FormState | null>(null);
   const [issuing, setIssuing] = useState<Record<string, boolean>>({});
   const [issueMessages, setIssueMessages] = useState<Record<string, IssueMessage>>({});
+  const [surveyPromptRound, setSurveyPromptRound] = useState<number | null>(null);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -195,6 +197,9 @@ export function CertificateIssueForm() {
           ? `수료증(${issued.certNo})이 다운로드되었습니다. 보관본 저장에는 실패했으니, 신청내역조회에서 다운로드가 안 되면 다시 발급해 주세요.`
           : `수료증(${issued.certNo})이 발급되어 다운로드되었습니다.`,
       });
+
+      // 수료증 발급 완료 직후 만족도조사 참여를 안내한다.
+      setSurveyPromptRound(issued.round);
 
       // 카드에 발급번호가 바로 보이도록 결과 목록을 갱신한다.
       setResults((prev) =>
@@ -360,6 +365,12 @@ export function CertificateIssueForm() {
           )}
         </div>
       )}
+
+      <SurveyPromptModal
+        open={surveyPromptRound !== null}
+        round={surveyPromptRound ?? undefined}
+        onClose={() => setSurveyPromptRound(null)}
+      />
     </div>
   );
 }
