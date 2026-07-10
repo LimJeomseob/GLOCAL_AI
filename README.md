@@ -9,8 +9,11 @@
 
 - 프론트엔드: Next.js(App Router, 정적 export) + Tailwind CSS → GitHub Pages
 - 데이터/인증: Supabase(Postgres, Auth, RLS, Storage) — 브라우저에서 anon key로 직접 접근, 접근 통제는 전부 RLS
-- 서비스 롤 키로 RLS를 우회해야 하는 유일한 작업(신청내역조회, §5.3)만 Supabase Edge Function으로 처리
-  - `supabase/functions/lookup` — 성명+연락처가 정확히 일치하는 신청 건만 서버에서 필터링해 반환
+- 서비스 롤 키로 RLS를 우회해야 하는 공개 작업(성명+연락처 본인확인 기반)만 Supabase Edge Function으로 처리
+  - `supabase/functions/lookup` — 성명+연락처가 정확히 일치하는 신청 건만 서버에서 필터링해 반환(§5.3)
+  - `supabase/functions/cancel-application` — 본인확인 후 신청 상태를 '취소'로 변경(특강 시작 전·신청완료/대기 건만).
+    행 삭제는 여전히 관리자 포털에서만 가능
+  - `supabase/functions/issue-certificate` — 본인확인 후 이수 건 수료증 발급(발급번호 채번·서식 전달)
 - 수료증 PDF 발급/재발급(§6.4)은 Edge Function이 아니라 **관리자의 브라우저**에서 직접 생성합니다
   (`src/lib/certificatePdf.ts`, `src/lib/issueCertificate.ts`). `issue_certificate()` RPC 호출과
   Storage 업로드 모두 RLS의 `is_admin()` 체크로 통제되므로 관리자가 아니면 실행되지 않습니다.
@@ -46,6 +49,8 @@ npm install -g supabase
 supabase login
 supabase link --project-ref <project-ref>
 supabase functions deploy lookup
+supabase functions deploy issue-certificate
+supabase functions deploy cancel-application
 supabase functions deploy kakao-digest --no-verify-jwt
 ```
 `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` 는 Supabase가 모든 Edge Function에

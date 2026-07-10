@@ -132,6 +132,13 @@ export interface IssueCertificateResponse {
   upload: { path: string; token: string };
 }
 
+/** POST supabase.functions.invoke("cancel-application") 응답 (Edge Function과 동일 shape) */
+export interface CancelApplicationResponse {
+  ok: boolean;
+  applicationId: string;
+  status: string;
+}
+
 /** POST supabase.functions.invoke("lookup") 응답의 각 항목 (Edge Function과 동일한 shape 유지) */
 export interface LookupResultItem {
   applicationId: string;
