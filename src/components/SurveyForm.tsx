@@ -16,6 +16,7 @@ import {
 
 interface SurveyFormProps {
   workshopSeeds: WorkshopSeed[];
+  initialRound?: number;
 }
 
 interface FormState {
@@ -115,8 +116,15 @@ function RadioGroupField({
   );
 }
 
-export function SurveyForm({ workshopSeeds }: SurveyFormProps) {
-  const [form, setForm] = useState<FormState>(INITIAL_STATE);
+export function SurveyForm({ workshopSeeds, initialRound }: SurveyFormProps) {
+  // 수료증 발급 완료 팝업 "만족도조사 참여하기"(/survey?round=N)로 진입 시 해당 회차를 자동 선택
+  const [form, setForm] = useState<FormState>(() => {
+    const seed = workshopSeeds.find((s) => s.round === initialRound);
+    return {
+      ...INITIAL_STATE,
+      workshop: seed ? `제${seed.round}차 · ${seed.topicSummary}` : "",
+    };
+  });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
