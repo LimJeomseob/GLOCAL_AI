@@ -33,7 +33,9 @@ export function InstructorModal({ instructor, onClose }: InstructorModalProps) {
                 <h2 id={titleId} className="text-xl font-bold text-slate-900">
                   {instructor.name}
                 </h2>
-                <p className="mt-0.5 text-sm text-accent">{instructor.tagline}</p>
+                {instructor.tagline && (
+                  <p className="mt-0.5 text-sm text-accent">{instructor.tagline}</p>
+                )}
               </div>
             </div>
             <button
@@ -49,10 +51,12 @@ export function InstructorModal({ instructor, onClose }: InstructorModalProps) {
           </div>
 
           <dl className="flex flex-col gap-4 text-sm">
-            <div>
-              <dt className="font-semibold text-slate-800">소속</dt>
-              <dd className="mt-0.5 text-slate-600">{instructor.affiliation}</dd>
-            </div>
+            {instructor.affiliation && (
+              <div>
+                <dt className="font-semibold text-slate-800">소속</dt>
+                <dd className="mt-0.5 text-slate-600">{instructor.affiliation}</dd>
+              </div>
+            )}
 
             {instructor.education && (
               <div>
@@ -67,6 +71,22 @@ export function InstructorModal({ instructor, onClose }: InstructorModalProps) {
                 <dd className="mt-1">
                   <ul className="flex flex-col gap-1 text-slate-600">
                     {instructor.career.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <span aria-hidden="true">·</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </dd>
+              </div>
+            )}
+
+            {instructor.lectures && instructor.lectures.length > 0 && (
+              <div>
+                <dt className="font-semibold text-slate-800">강의 이력</dt>
+                <dd className="mt-1">
+                  <ul className="flex flex-col gap-1 text-slate-600">
+                    {instructor.lectures.map((item) => (
                       <li key={item} className="flex gap-2">
                         <span aria-hidden="true">·</span>
                         <span>{item}</span>

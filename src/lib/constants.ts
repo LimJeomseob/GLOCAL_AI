@@ -183,11 +183,12 @@ export const TOTAL_CAPACITY = WORKSHOP_SEEDS.reduce((sum, w) => sum + w.capacity
 export interface InstructorProfile {
   slug: string;
   name: string;
-  tagline: string;
-  affiliation: string;
+  tagline?: string;
+  affiliation?: string;
   rounds: number[];
   education?: string;
   career: string[];
+  lectures?: string[];
   awards?: string[];
   publications?: string[];
   assignment: string;
@@ -221,15 +222,21 @@ export const INSTRUCTORS: InstructorProfile[] = [
   {
     slug: "park-yonggyu",
     name: "박용규",
-    tagline: "공공 실무 중심의 바이브코딩·업무자동화 강사",
-    affiliation: "바이브코딩 · 업무자동화 전문 강사",
     rounds: [2, 5],
+    education: "한국외국어대학교 정치학 박사과정 수료",
     career: [
-      "전) 국회 보좌관",
-      "바이브코딩(클로드 코드 등) 강의",
-      "자연어 업무 자동화 스크립트 강의",
-      "데이터 분석·보고서 자동화 강의",
-      "MCP 기반 도구 연동 강의",
+      "'AI 정책 인텔리전스 포털' GQAI.kr 개발자",
+      "베슬AI 대외협력이사",
+      "전) 뮤직카우 대외협력실장",
+      "전) 머니투데이 정치부 기자",
+      "전) 국회의원 보좌관",
+    ],
+    lectures: [
+      "한국인터넷기업협회 생성형 AI 활용교육",
+      "한국온라인쇼핑몰협회 생성형 AI 활용교육",
+      "한국대부금융협회 생성형 AI 활용교육",
+      "롯데그룹 대관담당자 생성형 AI 활용교육",
+      "국회의원실 생성형 AI 활용 교육 및 자문",
     ],
     assignment:
       "본 특강 2차(바이브코딩 이해 · 자연어 업무 자동화 스크립트), 5차(데이터 분석·보고서 자동화 · MCP 기반 도구 연동) 담당",
