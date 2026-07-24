@@ -48,7 +48,7 @@ Deno.serve(async (req: Request) => {
   const { data: application, error: appError } = await supabase
     .from("applications")
     .select(
-      "id, name, phone, affiliation, status, workshop:workshops(round, topic, start_at, end_at)"
+      "id, name, phone, affiliation, status, workshop:workshops(round, round_label, topic, start_at, end_at)"
     )
     .eq("id", applicationId)
     .maybeSingle();
@@ -133,6 +133,7 @@ Deno.serve(async (req: Request) => {
       name: application.name,
       affiliation: application.affiliation,
       round: workshop.round,
+      roundLabel: workshop.round_label ?? `${workshop.round}차`,
       topic: workshop.topic,
       startAt: workshop.start_at,
       endAt: workshop.end_at,

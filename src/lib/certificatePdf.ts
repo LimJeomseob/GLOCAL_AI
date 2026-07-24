@@ -50,6 +50,7 @@ export function buildCertificateValues(input: {
   name: string;
   affiliation: string;
   round: number;
+  roundLabel?: string;
   topic: string;
   startAt: string;
   endAt: string;
@@ -59,7 +60,7 @@ export function buildCertificateValues(input: {
     발급번호: input.certNo,
     성명: input.name,
     소속: input.affiliation,
-    프로그램명: `${PROGRAM_NAME} ${input.round}차(${input.topic})`,
+    프로그램명: `${PROGRAM_NAME} ${input.roundLabel || `${input.round}차`}(${input.topic})`,
     기간: formatCertPeriod(input.startAt, input.endAt),
     발급일: formatCertIssueDate(input.issuedAt),
   };

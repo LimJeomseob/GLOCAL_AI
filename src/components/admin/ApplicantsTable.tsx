@@ -139,9 +139,13 @@ export function ApplicantsTable({
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const rounds = useMemo(() => {
-    const set = new Set<number>();
-    applications.forEach((a) => set.add(a.workshop.round));
-    return Array.from(set).sort((a, b) => a - b);
+    const byRound = new Map<number, string>();
+    applications.forEach((a) =>
+      byRound.set(a.workshop.round, a.workshop.round_label || `${a.workshop.round}차`)
+    );
+    return Array.from(byRound.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([round, label]) => ({ round, label }));
   }, [applications]);
 
   const filtered = useMemo(() => {
@@ -405,7 +409,11 @@ export function ApplicantsTable({
           accessor: (a: ApplicationWithWorkshop) =>
             formatDateRange(a.workshop.start_at, a.workshop.end_at),
         },
-        { header: "회차", accessor: (a: ApplicationWithWorkshop) => a.workshop.round },
+        {
+          header: "회차",
+          accessor: (a: ApplicationWithWorkshop) =>
+            a.workshop.round_label || `${a.workshop.round}차`,
+        },
         { header: "성명", accessor: (a: ApplicationWithWorkshop) => a.name },
         { header: "소속", accessor: (a: ApplicationWithWorkshop) => a.affiliation },
         { header: "교번/직번/학번/생년월일", accessor: (a: ApplicationWithWorkshop) => a.id_number },
@@ -447,8 +455,8 @@ export function ApplicantsTable({
           >
             <option value="전체">전체</option>
             {rounds.map((r) => (
-              <option key={r} value={String(r)}>
-                {r}차
+              <option key={r.round} value={String(r.round)}>
+                {r.label}
               </option>
             ))}
           </select>
@@ -683,7 +691,8 @@ export function ApplicantsTable({
                   <td className="break-keep px-2 py-2 text-slate-700">{a.workshop.topic}</td>
                   <td className="px-2 py-2 text-slate-700">{formatDateTime(a.created_at)}</td>
                   <td className="px-2 py-2 text-slate-700">
-                    {a.workshop.round}차 · {formatDateRange(a.workshop.start_at, a.workshop.end_at)}
+                    {a.workshop.round_label || `${a.workshop.round}차`} ·{" "}
+                    {formatDateRange(a.workshop.start_at, a.workshop.end_at)}
                   </td>
                   <td className="whitespace-nowrap px-2 py-2 font-semibold text-slate-800">
                     {a.name}

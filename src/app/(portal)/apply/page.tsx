@@ -36,6 +36,7 @@ function ApplyContent() {
           return {
             id: workshop.id,
             round: workshop.round,
+            roundLabel: workshop.round_label ?? `${workshop.round}차`,
             topic: workshop.topic,
             instructor: workshop.instructor,
             location: workshop.location,

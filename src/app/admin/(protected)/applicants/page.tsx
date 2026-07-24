@@ -26,7 +26,7 @@ export default function AdminApplicantsPage() {
         supabase
           .from(TABLES.APPLICATIONS)
           .select(
-            "*, workshop:workshops(id, round, topic, start_at, end_at, location, notes, zoom_link)"
+            "*, workshop:workshops(id, round, round_label, topic, start_at, end_at, location, notes, zoom_link)"
           )
           .order("created_at", { ascending: false })
           .returns<ApplicationWithWorkshop[]>(),
