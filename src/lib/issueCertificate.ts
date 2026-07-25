@@ -60,6 +60,7 @@ export async function issueCertificateForApplication(
       name: application.name,
       affiliation: application.affiliation,
       round: application.workshop.round,
+      roundLabel: application.workshop.round_label,
       topic: application.workshop.topic,
       startAt: application.workshop.start_at,
       endAt: application.workshop.end_at,

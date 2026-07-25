@@ -12,7 +12,7 @@ export const KAKAO_NOTICE_COLUMNS: { field: KakaoNoticeField; label: string }[] 
 
 export const PROGRAM_NAME = "일과 삶을 바꾸는 생성형 AI 실무과정";
 export const PROGRAM_FULL_TITLE =
-  "모두의 AI를 위한 7월 AI활용 특강 — 일과 삶을 바꾸는 생성형 AI 실무과정";
+  "모두의 AI를 위한 7~8월 AI활용 특강 — 일과 삶을 바꾸는 생성형 AI 실무과정";
 export const ISSUER_NAME = "경상국립대학교 AI융합원장";
 export const ORG_NAME = "경상국립대학교";
 export const ORGANIZER_NAME = "경상국립대학교 AI 융합원";
@@ -20,6 +20,8 @@ export const CONTACT_PHONE = "055-772-4857";
 export const CONTACT_EMAIL = "240907@gnu.ac.kr";
 
 export const APPLICATION_OPEN_AT = "2026-07-08T09:00:00+09:00";
+/** 8월 특강(1~3차) 신청 시작 — ’26. 7. 27.(월) 13:00 */
+export const APPLICATION_OPEN_AT_AUGUST = "2026-07-27T13:00:00+09:00";
 
 export const BRAND_COLORS = {
   primary: "#003876",
@@ -29,6 +31,10 @@ export const BRAND_COLORS = {
 /** workshops 테이블 seed 데이터 원본 (PRD §13.1, §13.2, §13.3) — supabase/migrations seed와 동일하게 유지 */
 export interface WorkshopSeed {
   round: number;
+  /** 화면 표시용 회차 라벨(예: "7월 1차", "8월 3차") — DB workshops.round_label과 동일 */
+  roundLabel: string;
+  /** 소개 탭 카드 그룹(월별 특강 구분) */
+  programGroup: string;
   topicSummary: string;
   instructor: string;
   location: string;
@@ -46,6 +52,8 @@ export interface WorkshopSeed {
 export const WORKSHOP_SEEDS: WorkshopSeed[] = [
   {
     round: 1,
+    roundLabel: "7월 1차",
+    programGroup: "7월 특강",
     topicSummary: "제미나이 워크플로우 자동화 · Google Workspace 실습",
     instructor: "이성원",
     location: "경상국립대학교 4동 학술정보관 하이플렉스강의실",
@@ -74,6 +82,8 @@ export const WORKSHOP_SEEDS: WorkshopSeed[] = [
   },
   {
     round: 2,
+    roundLabel: "7월 2차",
+    programGroup: "7월 특강",
     topicSummary: "바이브코딩 이해 · 자연어 업무 자동화 스크립트",
     instructor: "박용규",
     location: "경상국립대학교 4동 학술정보관 하이플렉스강의실",
@@ -102,6 +112,8 @@ export const WORKSHOP_SEEDS: WorkshopSeed[] = [
   },
   {
     round: 3,
+    roundLabel: "7월 3차",
+    programGroup: "7월 특강",
     topicSummary: "효과적인 프롬프트 작성법(온라인)",
     instructor: "강수진",
     location: "온라인(실시간 Zoom)",
@@ -124,6 +136,8 @@ export const WORKSHOP_SEEDS: WorkshopSeed[] = [
   },
   {
     round: 4,
+    roundLabel: "7월 4차",
+    programGroup: "7월 특강",
     topicSummary: "Claude 데스크탑 파일 자동화 · 한글(hwp) 문서 자동 작성",
     instructor: "임근석",
     location: "경상국립대학교 4동 학술정보관 하이플렉스강의실",
@@ -151,6 +165,8 @@ export const WORKSHOP_SEEDS: WorkshopSeed[] = [
   },
   {
     round: 5,
+    roundLabel: "7월 5차",
+    programGroup: "7월 특강",
     topicSummary: "데이터 분석·보고서 자동화 · MCP 기반 도구 연동",
     instructor: "박용규",
     location: "경상국립대학교 4동 학술정보관 하이플렉스강의실",
@@ -176,9 +192,96 @@ export const WORKSHOP_SEEDS: WorkshopSeed[] = [
     ],
     notes: "개인별 파일 지참(USB) 및 Claude Pro 이상 유료버전 사용 권장",
   },
+  {
+    round: 6,
+    roundLabel: "8월 1차",
+    programGroup: "8월 특강",
+    topicSummary: "바이브코딩 이해 · AI 활용 업무 자동화",
+    instructor: "최시경",
+    location: "경상국립대학교 4동 학술정보관 하이플렉스강의실",
+    capacity: 30,
+    startAt: "2026-08-10T13:00:00+09:00",
+    endAt: "2026-08-10T17:00:00+09:00",
+    deadline: "2026-08-08T13:00:00+09:00",
+    applyOpenAt: APPLICATION_OPEN_AT_AUGUST,
+    level: "중급",
+    target: "전체",
+    sessions: [
+      {
+        time_label: "13:00~15:00",
+        topic: "바이브코딩 이해",
+        content: "바이브코딩(자연어 기반 코딩) 개념 이해",
+      },
+      {
+        time_label: "15:00~17:00",
+        topic: "AI 활용 업무 자동화",
+        content: "자연어 프롬프트로 업무 자동화 스크립트 작성 실습",
+      },
+    ],
+    notes: "개인별 파일 지참(USB) 및 Claude Pro 이상 유료버전 사용 권장",
+  },
+  {
+    round: 7,
+    roundLabel: "8월 2차",
+    programGroup: "8월 특강",
+    topicSummary: "제미나이 워크플로우 자동화 · Google Workspace 실습",
+    instructor: "이성원",
+    location: "경상국립대학교 4동 학술정보관 하이플렉스강의실",
+    capacity: 30,
+    startAt: "2026-08-13T13:00:00+09:00",
+    endAt: "2026-08-13T17:00:00+09:00",
+    deadline: "2026-08-11T13:00:00+09:00",
+    applyOpenAt: APPLICATION_OPEN_AT_AUGUST,
+    level: "초급",
+    target: "전체",
+    sessions: [
+      {
+        time_label: "13:00~15:00",
+        topic: "제미나이를 이용한 워크플로우 자동화",
+        content:
+          "Google Gemini 작동 원리 이해 및 프롬프트 기반 반복 업무 자동화(워크플로우) 설계 개념 학습",
+      },
+      {
+        time_label: "15:00~17:00",
+        topic: "Google Workspace 활용 워크플로우(실습)",
+        content:
+          "Google Workspace(문서·시트·메일) 연동을 통한 반복 업무 자동화 흐름 구성 및 실무 적용 실습",
+      },
+    ],
+    notes: "",
+  },
+  {
+    round: 8,
+    roundLabel: "8월 3차",
+    programGroup: "8월 특강",
+    topicSummary: "Claude 데스크탑 파일 정리 자동화 · 스킬 활용 문서 자동 작성",
+    instructor: "연정호",
+    location: "경상국립대학교 4동 학술정보관 하이플렉스강의실",
+    capacity: 30,
+    startAt: "2026-08-14T13:00:00+09:00",
+    endAt: "2026-08-14T17:00:00+09:00",
+    deadline: "2026-08-12T13:00:00+09:00",
+    applyOpenAt: APPLICATION_OPEN_AT_AUGUST,
+    level: "중급",
+    target: "전체",
+    sessions: [
+      {
+        time_label: "13:00~15:00",
+        topic: "Claude 데스크탑 앱 설치와 파일 정리 자동화",
+        content: "클로드 데스크탑 앱 설치 및 파일·폴더 자동 정리 기능 활용법",
+      },
+      {
+        time_label: "15:00~17:00",
+        topic: "스킬을 활용한 문서 자동 작성",
+        content:
+          "① 이미지 데이터를 엑셀로 자동 분석하는 실습 ② 스킬을 활용해 클로드로 파일을 자동 생성하는 실습",
+      },
+    ],
+    notes: "개인별 파일 지참(USB) 및 Claude Pro 이상 유료버전 사용 권장",
+  },
 ];
 
-export const TOTAL_CAPACITY = WORKSHOP_SEEDS.reduce((sum, w) => sum + w.capacity, 0); // 220
+export const TOTAL_CAPACITY = WORKSHOP_SEEDS.reduce((sum, w) => sum + w.capacity, 0); // 310
 
 export interface InstructorProfile {
   slug: string;
@@ -202,7 +305,7 @@ export const INSTRUCTORS: InstructorProfile[] = [
     name: "이성원",
     tagline: "교육 현장의 생성형 AI 실천가 · Google 공인 트레이너",
     affiliation: "영산중학교 교사",
-    rounds: [1],
+    rounds: [1, 7],
     education: "경남대학교 AI창의융합교육 석사, 교육학 석사",
     career: [
       "Google for Education 구글 공인 트레이너",
@@ -216,7 +319,8 @@ export const INSTRUCTORS: InstructorProfile[] = [
       "2023 엘리스 AI Edu Hackathon 대상",
       "2023 SKT·OpenAI Prompter Day Seoul 예선 통과",
     ],
-    assignment: "본 특강 1차(제미나이 워크플로우 자동화 · Google Workspace 실습) 담당",
+    assignment:
+      "본 특강 7월 1차·8월 2차(제미나이 워크플로우 자동화 · Google Workspace 실습) 담당",
     photoAlt: "이성원 강사 프로필 사진",
   },
   {
@@ -239,7 +343,7 @@ export const INSTRUCTORS: InstructorProfile[] = [
       "국회의원실 생성형 AI 활용 교육 및 자문",
     ],
     assignment:
-      "본 특강 2차(바이브코딩 이해 · 자연어 업무 자동화 스크립트), 5차(데이터 분석·보고서 자동화 · MCP 기반 도구 연동) 담당",
+      "본 특강 7월 2차(바이브코딩 이해 · 자연어 업무 자동화 스크립트), 7월 5차(데이터 분석·보고서 자동화 · MCP 기반 도구 연동) 담당",
     photoAlt: "박용규 강사 프로필 사진",
   },
   {
@@ -257,7 +361,7 @@ export const INSTRUCTORS: InstructorProfile[] = [
       "생성형 AI·프롬프트 엔지니어링 기업 강연·교육 다수",
       "프롬프트 기획·제작·테스트·평가 방법론 강의",
     ],
-    assignment: "본 특강 3차(효과적인 프롬프트 작성법 · 온라인) 담당",
+    assignment: "본 특강 7월 3차(효과적인 프롬프트 작성법 · 온라인) 담당",
     photoAlt: "강수진 강사 프로필 사진",
   },
   {
@@ -273,8 +377,38 @@ export const INSTRUCTORS: InstructorProfile[] = [
       "클로드 코드 Deep Dive 및 기업/대학 다수 강의(카카오·부산대·인하공전 등)",
     ],
     assignment:
-      "본 특강 4차(Claude 데스크탑 앱 설치·파일 정리 자동화 · 한글(hwp) 문서 자동 작성) 담당",
+      "본 특강 7월 4차(Claude 데스크탑 앱 설치·파일 정리 자동화 · 한글(hwp) 문서 자동 작성) 담당",
     photoAlt: "임근석 강사 프로필 사진",
+  },
+  {
+    slug: "choi-sigyeong",
+    name: "최시경",
+    rounds: [6],
+    education: "경상대학교 영어교육 석사(2016)",
+    career: [
+      "한국과학창의재단 찾아가는 학교 컨설팅(2025.03~2025.12)",
+      "진주교육대학교 산학협력단 자문/강사",
+    ],
+    assignment: "본 특강 8월 1차(바이브코딩 이해 · AI 활용 업무 자동화) 담당",
+    photoAlt: "최시경 강사 프로필 사진",
+  },
+  {
+    slug: "yeon-jeongho",
+    name: "연정호",
+    affiliation: "SK하이닉스 미래기술연구원(반도체소자개발)",
+    rounds: [8],
+    education:
+      "세종대학교 전자정보통신공학 학사(2007), 한국과학기술원(KAIST) 전기및전자공학 석사(2009)·박사(2014)",
+    career: ["SK하이닉스 미래기술연구원 반도체소자개발(2014.2~현재)"],
+    lectures: [
+      "경상국립대학교 GeNiUs 1박2일 AI 활용 특강",
+      "경상국립대학교 교수/교직원 대상 NotebookLM 활용 특강",
+      "상명대학교 학사과정 학생 대상 AI 활용 특강",
+    ],
+    publications: ["저서 「이기적인 새벽출근」"],
+    assignment:
+      "본 특강 8월 3차(Claude 데스크탑 파일 정리 자동화 · 스킬 활용 문서 자동 작성) 담당",
+    photoAlt: "연정호 강사 프로필 사진",
   },
 ];
 
@@ -327,7 +461,7 @@ export const KAKAO_TEMPLATES: KakaoTemplateSpec[] = [
     type: "2",
     name: "프로그램별 참여 유의사항",
     description:
-      "회차별 준비물·주의 안내(2·4·5차: USB 파일 지참·Claude Pro 이상 유료버전 권장 / 3차: 카메라·마이크 사용 권장)",
+      "회차별 준비물·주의 안내(7월 2·4·5차 및 8월 1·3차: USB 파일 지참·Claude Pro 이상 유료버전 권장 / 7월 3차: 카메라·마이크 사용 권장)",
     variables: ["성명", "프로그램명", "유의사항"],
     sampleBody: "[{프로그램명}] {성명}님, 참여 전 아래 유의사항을 확인해 주세요.\n{유의사항}",
   },

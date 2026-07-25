@@ -12,7 +12,7 @@ export function Footer() {
       <div className="mx-auto max-w-5xl px-4 py-8 text-sm text-slate-500 sm:px-6">
         <p className="font-semibold text-slate-700">{ORG_NAME} 글로컬대학30 사업단</p>
         <p className="mt-1">
-          2026학년도 「모두의 AI를 위한 7월 AI활용 특강」 · {PROGRAM_NAME}
+          2026학년도 「모두의 AI를 위한 7~8월 AI활용 특강」 · {PROGRAM_NAME}
         </p>
         <p className="mt-1">주관: {ORGANIZER_NAME}</p>
         <p className="mt-1">

@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "일과 삶을 바꾸는 생성형 AI 실무과정 | 경상국립대학교 글로컬대학30",
   description:
-    "경상국립대학교 글로컬대학30 사업 — 2026학년도 모두의 AI를 위한 7월 AI활용 특강 신청·관리 포털",
+    "경상국립대학교 글로컬대학30 사업 — 2026학년도 모두의 AI를 위한 7~8월 AI활용 특강 신청·관리 포털",
 };
 
 export default function RootLayout({

@@ -42,6 +42,7 @@ function formatDateRange(startIso: string, endIso: string): string {
 
 interface WorkshopRow {
   round: number;
+  round_label: string;
   topic: string;
   start_at: string;
   end_at: string;
@@ -64,7 +65,7 @@ function renderTemplate(body: string, app: ApplicationRow, w: WorkshopRow | null
   return body
     .replace(/\{성명\}/g, app.name ?? "")
     .replace(/\{프로그램명\}/g, PROGRAM_NAME)
-    .replace(/\{회차\}/g, w ? `${w.round}차` : "")
+    .replace(/\{회차\}/g, w ? w.round_label || `${w.round}차` : "")
     .replace(/\{상태\}/g, app.status ?? "")
     .replace(/\{일시\}/g, w ? formatDateRange(w.start_at, w.end_at) : "")
     .replace(/\{장소\}/g, w?.location ?? "")
@@ -149,7 +150,7 @@ Deno.serve(async (req: Request) => {
   const { data: applications, error: appErr } = await supabase
     .from("applications")
     .select(
-      "id, name, id_number, phone, status, created_at, workshop:workshops(round, topic, start_at, end_at, location, notes, zoom_link)"
+      "id, name, id_number, phone, status, created_at, workshop:workshops(round, round_label, topic, start_at, end_at, location, notes, zoom_link)"
     )
     .gt("created_at", lastRunAt)
     .order("created_at", { ascending: true });

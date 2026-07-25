@@ -19,6 +19,7 @@ function normalizePhone(phone: string): string {
 interface LookupResultItem {
   applicationId: string;
   round: number;
+  roundLabel: string;
   topic: string;
   startAt: string;
   endAt: string;
@@ -51,7 +52,9 @@ Deno.serve(async (req: Request) => {
 
   const { data: applications, error } = await supabase
     .from("applications")
-    .select("id, name, phone, status, workshop:workshops(round, topic, start_at, end_at, location)")
+    .select(
+      "id, name, phone, status, workshop:workshops(round, round_label, topic, start_at, end_at, location)"
+    )
     .eq("name", name);
 
   if (error) {
@@ -98,6 +101,7 @@ Deno.serve(async (req: Request) => {
       return {
         applicationId: row.id,
         round: workshop?.round ?? 0,
+        roundLabel: workshop?.round_label ?? (workshop?.round ? `${workshop.round}차` : ""),
         topic: workshop?.topic ?? "",
         startAt: workshop?.start_at ?? "",
         endAt: workshop?.end_at ?? "",

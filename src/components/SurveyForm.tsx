@@ -122,7 +122,7 @@ export function SurveyForm({ workshopSeeds, initialRound }: SurveyFormProps) {
     const seed = workshopSeeds.find((s) => s.round === initialRound);
     return {
       ...INITIAL_STATE,
-      workshop: seed ? `제${seed.round}차 · ${seed.topicSummary}` : "",
+      workshop: seed ? `${seed.roundLabel} · ${seed.topicSummary}` : "",
     };
   });
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -211,8 +211,8 @@ export function SurveyForm({ workshopSeeds, initialRound }: SurveyFormProps) {
                 참여 프로그램을 선택해 주세요
               </option>
               {workshopSeeds.map((seed) => (
-                <option key={seed.round} value={`제${seed.round}차 · ${seed.topicSummary}`}>
-                  제{seed.round}차 · {seed.topicSummary}
+                <option key={seed.round} value={`${seed.roundLabel} · ${seed.topicSummary}`}>
+                  {seed.roundLabel} · {seed.topicSummary}
                 </option>
               ))}
             </select>

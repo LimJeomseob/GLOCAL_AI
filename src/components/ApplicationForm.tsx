@@ -12,6 +12,7 @@ import { formatDateRange, formatDateTime } from "@/lib/format";
 export interface WorkshopOption {
   id: string;
   round: number;
+  roundLabel: string;
   topic: string;
   instructor: string;
   location: string;
@@ -206,7 +207,7 @@ export function ApplicationForm({
               <option value="">회차를 선택해 주세요</option>
               {workshopOptions.map((w) => (
                 <option key={w.id} value={w.id} disabled={w.isClosed || w.isNotYetOpen}>
-                  {`${w.round}차 - ${w.topic} (${formatDateRange(w.startAt, w.endAt)})`}
+                  {`${w.roundLabel} - ${w.topic} (${formatDateRange(w.startAt, w.endAt)})`}
                   {w.isNotYetOpen
                     ? " (신청 예정)"
                     : w.isClosed

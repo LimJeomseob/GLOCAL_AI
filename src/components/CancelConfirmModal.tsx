@@ -37,7 +37,7 @@ export function CancelConfirmModal({ open, item, onConfirm, onClose }: CancelCon
 
         {item && (
           <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800">
-            {item.round}차 · {item.topic}
+            {item.roundLabel || `${item.round}차`} · {item.topic}
           </p>
         )}
 

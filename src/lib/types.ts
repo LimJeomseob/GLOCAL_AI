@@ -10,10 +10,11 @@ export interface WorkshopSession {
   content: string; // 주요 교육내용
 }
 
-/** workshops 테이블 1행 = 회차(1~5차) 1개. 2세션 상세는 sessions(jsonb)에 보관 (PRD §13.2) */
+/** workshops 테이블 1행 = 회차 1개(7월 1~5차, 8월 1~3차). 2세션 상세는 sessions(jsonb)에 보관 (PRD §13.2) */
 export interface Workshop {
   id: string;
-  round: number; // 1~5
+  round: number; // 내부 연번(1~8). 수료증 번호·/apply?round=N 키
+  round_label: string; // 화면 표시용 라벨(예: "7월 1차", "8월 3차")
   topic: string; // 회차 대표 주제(요약)
   instructor: string;
   location: string;
@@ -60,7 +61,7 @@ export interface Application {
 export interface ApplicationWithWorkshop extends Application {
   workshop: Pick<
     Workshop,
-    "id" | "round" | "topic" | "start_at" | "end_at" | "location"
+    "id" | "round" | "round_label" | "topic" | "start_at" | "end_at" | "location"
   >;
 }
 
@@ -125,6 +126,7 @@ export interface IssueCertificateResponse {
   name: string;
   affiliation: string;
   round: number;
+  roundLabel: string;
   topic: string;
   startAt: string;
   endAt: string;
@@ -143,6 +145,7 @@ export interface CancelApplicationResponse {
 export interface LookupResultItem {
   applicationId: string;
   round: number;
+  roundLabel: string;
   topic: string;
   startAt: string;
   endAt: string;

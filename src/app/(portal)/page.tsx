@@ -38,7 +38,7 @@ export default function PortalIntroPage() {
       {/* 히어로: 프로그램 소개 */}
       <section aria-labelledby="hero-heading" className="text-center">
         <p className="text-sm font-semibold text-accent">
-          경상국립대학교 글로컬대학30 · 2026학년도 「모두의 AI를 위한 7월 AI활용 특강」
+          경상국립대학교 글로컬대학30 · 2026학년도 「모두의 AI를 위한 7~8월 AI활용 특강」
         </p>
         <h1 id="hero-heading" className="mt-2 text-2xl font-extrabold text-brand sm:text-3xl">
           {PROGRAM_NAME}

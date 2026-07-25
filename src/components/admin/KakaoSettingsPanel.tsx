@@ -36,7 +36,7 @@ function renderTemplate(body: string, app: ApplicationWithWorkshop | null): stri
   return body
     .replace(/\{성명\}/g, app.name ?? "")
     .replace(/\{프로그램명\}/g, PROGRAM_NAME)
-    .replace(/\{회차\}/g, w ? `${w.round}차` : "")
+    .replace(/\{회차\}/g, w ? w.round_label || `${w.round}차` : "")
     .replace(/\{상태\}/g, app.status ?? "")
     .replace(/\{일시\}/g, w?.start_at && w?.end_at ? formatDateRange(w.start_at, w.end_at) : "")
     .replace(/\{장소\}/g, w?.location ?? "")
@@ -425,7 +425,7 @@ export function KakaoSettingsPanel({
                   {applications.length === 0 && <option value="">신청자 없음</option>}
                   {applications.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.workshop.round}차 · {a.name} ({a.phone})
+                      {a.workshop.round_label || `${a.workshop.round}차`} · {a.name} ({a.phone})
                     </option>
                   ))}
                 </select>

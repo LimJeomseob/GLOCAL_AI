@@ -253,7 +253,7 @@ export function LookupForm() {
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <h2 className="text-base font-bold text-brand sm:text-lg">
-                        {item.round}차 · {item.topic}
+                        {item.roundLabel || `${item.round}차`} · {item.topic}
                       </h2>
                       {isApplicationStatus(item.status) ? (
                         <StatusBadge status={item.status} />

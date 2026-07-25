@@ -36,6 +36,9 @@ interface LiveWorkshopInfo {
 /** loading = 현재 시각 확인 전(상태 미확정), 이후 신청 예정/모집중/마감으로 확정 */
 type ProgramCardStatus = "loading" | "notYetOpen" | "open" | "closed";
 
+/** 월별 특강 그룹(7월 특강 / 8월 특강) — 시드 정의 순서 유지 */
+const PROGRAM_GROUPS = Array.from(new Set(WORKSHOP_SEEDS.map((w) => w.programGroup)));
+
 export function ProgramCards() {
   const [selectedInstructor, setSelectedInstructor] = useState<InstructorProfile | null>(null);
   // 상태 판정은 마운트 후 클라이언트 시각으로만 계산(빌드 시점 고정·하이드레이션 불일치 방지)
@@ -79,39 +82,53 @@ export function ProgramCards() {
 
   return (
     <>
-      <ul role="list" className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {WORKSHOP_SEEDS.map((w) => {
-          // DB 값이 있으면 신청기간·정원을 DB 기준으로 사용(실시간 연동), 없으면 시드값 폴백
-          const live = liveByRound?.get(w.round);
-          const applyOpenAt = live?.applyOpenAt ?? w.applyOpenAt;
-          const deadline = live?.deadline ?? w.deadline;
-          // 현재 시각(now)을 알기 전(정적 렌더/하이드레이션 시점)에는 상태를 단정하지 않는다.
-          // 이 구간에 "모집중"을 표기하면 정적 HTML에 잘못된 상태가 박제되므로 "확인 중"으로 둔다.
-          const statusKind: ProgramCardStatus =
-            now === null
-              ? "loading"
-              : (() => {
-                  const s = deriveWorkshopStatus(
-                    { capacity: live?.capacity ?? w.capacity, apply_open_at: applyOpenAt, deadline },
-                    live?.appliedCount ?? 0,
-                    now
-                  );
-                  if (s.isNotYetOpen) return "notYetOpen";
-                  if (s.isClosed) return "closed";
-                  return "open";
-                })();
+      <div className="flex flex-col gap-10">
+        {PROGRAM_GROUPS.map((group) => (
+          <section key={group} aria-label={group}>
+            <h3 className="text-lg font-bold text-brand">{group}</h3>
+            <ul
+              role="list"
+              className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+            >
+              {WORKSHOP_SEEDS.filter((w) => w.programGroup === group).map((w) => {
+                // DB 값이 있으면 신청기간·정원을 DB 기준으로 사용(실시간 연동), 없으면 시드값 폴백
+                const live = liveByRound?.get(w.round);
+                const applyOpenAt = live?.applyOpenAt ?? w.applyOpenAt;
+                const deadline = live?.deadline ?? w.deadline;
+                // 현재 시각(now)을 알기 전(정적 렌더/하이드레이션 시점)에는 상태를 단정하지 않는다.
+                // 이 구간에 "모집중"을 표기하면 정적 HTML에 잘못된 상태가 박제되므로 "확인 중"으로 둔다.
+                const statusKind: ProgramCardStatus =
+                  now === null
+                    ? "loading"
+                    : (() => {
+                        const s = deriveWorkshopStatus(
+                          {
+                            capacity: live?.capacity ?? w.capacity,
+                            apply_open_at: applyOpenAt,
+                            deadline,
+                          },
+                          live?.appliedCount ?? 0,
+                          now
+                        );
+                        if (s.isNotYetOpen) return "notYetOpen";
+                        if (s.isClosed) return "closed";
+                        return "open";
+                      })();
 
-          return (
-            <ProgramCard
-              key={w.round}
-              workshop={w}
-              applyOpenAt={applyOpenAt}
-              statusKind={statusKind}
-              onOpenInstructor={openInstructor}
-            />
-          );
-        })}
-      </ul>
+                return (
+                  <ProgramCard
+                    key={w.round}
+                    workshop={w}
+                    applyOpenAt={applyOpenAt}
+                    statusKind={statusKind}
+                    onOpenInstructor={openInstructor}
+                  />
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </div>
       <InstructorModal
         instructor={selectedInstructor}
         onClose={() => setSelectedInstructor(null)}
@@ -160,7 +177,7 @@ function ProgramCard({
       </div>
 
       <h3 className="mt-3 text-base font-bold leading-snug text-slate-900">
-        {w.round}차 · {w.topicSummary}
+        {w.roundLabel} · {w.topicSummary}
       </h3>
 
       <ul role="list" className="mt-3 flex flex-col gap-1.5 text-sm text-slate-700">
