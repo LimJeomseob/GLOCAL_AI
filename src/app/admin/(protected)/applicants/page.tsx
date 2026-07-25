@@ -25,9 +25,8 @@ export default function AdminApplicantsPage() {
       const [applicationsRes, kakaoSettingsRes, kakaoNotificationsRes] = await Promise.all([
         supabase
           .from(TABLES.APPLICATIONS)
-          .select(
-            "*, workshop:workshops(id, round, round_label, topic, start_at, end_at, location, notes, zoom_link)"
-          )
+          // workshops(*)로 조회해 round_label 컬럼 추가 마이그레이션(0007) 적용 전후 모두 동작하게 한다.
+          .select("*, workshop:workshops(*)")
           .order("created_at", { ascending: false })
           .returns<ApplicationWithWorkshop[]>(),
         supabase.from(TABLES.KAKAO_SEND_SETTINGS).select("*").maybeSingle<KakaoAutoSendSettings>(),
