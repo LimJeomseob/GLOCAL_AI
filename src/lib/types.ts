@@ -50,9 +50,8 @@ export interface Application {
   consent: boolean;
   status: ApplicationStatus;
   cert_issued: boolean;
-  kakao_notice1_sent: boolean;
-  kakao_notice2_sent: boolean;
-  kakao_notice3_sent: boolean;
+  /** 안내메세지 확인 여부(관리자 수동 체크, 0008 마이그레이션) */
+  notice_confirmed: boolean;
   created_by_admin: boolean;
   created_at: string;
 }
@@ -161,52 +160,4 @@ export interface AdminUser {
   id: string;
   email: string;
   role: AdminRole;
-}
-
-export type KakaoTemplateType = "1" | "2" | "3";
-export type KakaoNotificationStatus = "대기" | "성공" | "실패";
-
-export interface KakaoNotification {
-  id: string;
-  application_id: string;
-  recipient: string;
-  template_type: KakaoTemplateType;
-  sent_at: string | null;
-  status: KakaoNotificationStatus;
-  response_code: string | null;
-  retry_count: number;
-  channel?: string;
-  error_message?: string | null;
-}
-
-export interface KakaoAutoSendSettings {
-  id: string;
-  enabled: boolean;
-  template_1_enabled: boolean;
-  template_2_enabled: boolean;
-  template_3_enabled: boolean;
-  schedule_days_before: number; // (c) D-N 예약발송 기준일
-  active_template_type: KakaoTemplateType; // 다이제스트 메일에 사용할 활성 템플릿
-  email_enabled: boolean; // 관리자 알림 메일 사용 여부
-  notify_when_empty: boolean; // 대상자 0명일 때도 메일 발송할지
-  updated_at: string;
-}
-
-/** kakao_templates — 관리자가 편집하는 알림톡/메일 문구 */
-export interface KakaoTemplate {
-  id: string;
-  template_type: KakaoTemplateType;
-  name: string;
-  email_subject: string;
-  body: string;
-  variables: string[];
-  enabled: boolean;
-  updated_at: string;
-}
-
-/** kakao_digest_state — 다이제스트 워터마크(직전 발송 시각) */
-export interface KakaoDigestState {
-  id: string;
-  last_run_at: string;
-  updated_at: string;
 }
