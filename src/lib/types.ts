@@ -50,8 +50,10 @@ export interface Application {
   consent: boolean;
   status: ApplicationStatus;
   cert_issued: boolean;
-  /** 안내메세지 확인 여부(관리자 수동 체크, 0008 마이그레이션) */
-  notice_confirmed: boolean;
+  /** 안내메세지 확인 1·2·3차(관리자 수동 체크). 물리 컬럼명은 과거 카톡 발송 체크(0005)를 재사용한다. */
+  kakao_notice1_sent: boolean;
+  kakao_notice2_sent: boolean;
+  kakao_notice3_sent: boolean;
   created_by_admin: boolean;
   created_at: string;
 }
