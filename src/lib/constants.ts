@@ -1,15 +1,5 @@
 import type { WorkshopLevel, WorkshopSession } from "./types";
 
-/** applications 테이블의 카톡 안내 발송 단계 필드명 */
-export type KakaoNoticeField = "kakao_notice1_sent" | "kakao_notice2_sent" | "kakao_notice3_sent";
-
-/** 카톡 안내 발송 단계 정의(1차 신청결과 안내 / 2차 수강안내 / 3차 최종수강안내) — 신청자 테이블·대시보드 공통 사용 */
-export const KAKAO_NOTICE_COLUMNS: { field: KakaoNoticeField; label: string }[] = [
-  { field: "kakao_notice1_sent", label: "1차 신청결과 안내" },
-  { field: "kakao_notice2_sent", label: "2차 수강안내" },
-  { field: "kakao_notice3_sent", label: "3차 최종수강안내" },
-];
-
 export const PROGRAM_NAME = "일과 삶을 바꾸는 생성형 AI 실무과정";
 export const PROGRAM_FULL_TITLE =
   "모두의 AI를 위한 7~8월 AI활용 특강 — 일과 삶을 바꾸는 생성형 AI 실무과정";
@@ -437,40 +427,4 @@ export const LIKERT_SCALE_LABELS = [
   "3점(보통이다)",
   "4점(그렇다)",
   "5점(매우 그렇다)",
-];
-
-/** 카카오톡 안내문자 템플릿(설계용, §9.3) */
-export interface KakaoTemplateSpec {
-  type: "1" | "2" | "3";
-  name: string;
-  description: string;
-  variables: string[];
-  sampleBody: string;
-}
-
-export const KAKAO_TEMPLATES: KakaoTemplateSpec[] = [
-  {
-    type: "1",
-    name: "신청결과 안내",
-    description: "신청 상태 확정 시(승인/대기/취소) 발송",
-    variables: ["성명", "프로그램명", "회차", "상태", "일시", "장소"],
-    sampleBody:
-      "[{프로그램명}] {성명}님, {회차} 신청이 {상태} 처리되었습니다.\n일시: {일시}\n장소: {장소}",
-  },
-  {
-    type: "2",
-    name: "프로그램별 참여 유의사항",
-    description:
-      "회차별 준비물·주의 안내(7월 2·4·5차 및 8월 1·3차: USB 파일 지참·Claude Pro 이상 유료버전 권장 / 7월 3차: 카메라·마이크 사용 권장)",
-    variables: ["성명", "프로그램명", "유의사항"],
-    sampleBody: "[{프로그램명}] {성명}님, 참여 전 아래 유의사항을 확인해 주세요.\n{유의사항}",
-  },
-  {
-    type: "3",
-    name: "프로그램 안내",
-    description: "장소·시간·간략 내용 안내",
-    variables: ["성명", "프로그램명", "일시", "장소", "내용요약", "Zoom링크"],
-    sampleBody:
-      "[{프로그램명}] {성명}님, 특강 안내드립니다.\n일시: {일시}\n장소: {장소}\n{내용요약}\n{Zoom링크}",
-  },
 ];

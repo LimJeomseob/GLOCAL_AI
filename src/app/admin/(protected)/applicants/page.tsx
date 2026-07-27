@@ -3,18 +3,11 @@
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TABLES } from "@/lib/db-tables";
-import type { ApplicationWithWorkshop, KakaoAutoSendSettings, KakaoNotification } from "@/lib/types";
+import type { ApplicationWithWorkshop } from "@/lib/types";
 import { ApplicantsTable } from "@/components/admin/ApplicantsTable";
-import { KakaoSettingsPanel } from "@/components/admin/KakaoSettingsPanel";
-
-interface LoadedState {
-  applications: ApplicationWithWorkshop[];
-  kakaoSettings: KakaoAutoSendSettings | null;
-  kakaoNotifications: KakaoNotification[];
-}
 
 export default function AdminApplicantsPage() {
-  const [state, setState] = useState<LoadedState | null>(null);
+  const [applications, setApplications] = useState<ApplicationWithWorkshop[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -22,25 +15,16 @@ export default function AdminApplicantsPage() {
     const supabase = createSupabaseBrowserClient();
 
     async function load() {
-      const [applicationsRes, kakaoSettingsRes, kakaoNotificationsRes] = await Promise.all([
-        supabase
-          .from(TABLES.APPLICATIONS)
-          // workshops(*)로 조회해 round_label 컬럼 추가 마이그레이션(0007) 적용 전후 모두 동작하게 한다.
-          .select("*, workshop:workshops(*)")
-          .order("created_at", { ascending: false })
-          .returns<ApplicationWithWorkshop[]>(),
-        supabase.from(TABLES.KAKAO_SEND_SETTINGS).select("*").maybeSingle<KakaoAutoSendSettings>(),
-        supabase
-          .from(TABLES.KAKAO_NOTIFICATIONS)
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(50)
-          .returns<KakaoNotification[]>(),
-      ]);
+      const applicationsRes = await supabase
+        .from(TABLES.APPLICATIONS)
+        // workshops(*)로 조회해 round_label 컬럼 추가 마이그레이션(0007) 적용 전후 모두 동작하게 한다.
+        .select("*, workshop:workshops(*)")
+        .order("created_at", { ascending: false })
+        .returns<ApplicationWithWorkshop[]>();
 
       if (!active) return;
 
-      if (applicationsRes.error || kakaoSettingsRes.error || kakaoNotificationsRes.error) {
+      if (applicationsRes.error) {
         setError("데이터를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.");
         return;
       }
@@ -54,11 +38,7 @@ export default function AdminApplicantsPage() {
         })
       );
 
-      setState({
-        applications: normalizedApplications,
-        kakaoSettings: kakaoSettingsRes.data ?? null,
-        kakaoNotifications: kakaoNotificationsRes.data ?? [],
-      });
+      setApplications(normalizedApplications);
     }
 
     load();
@@ -82,23 +62,13 @@ export default function AdminApplicantsPage() {
         </p>
       )}
 
-      {!error && !state && (
+      {!error && !applications && (
         <p role="status" className="text-sm text-slate-500">
           신청자 목록을 불러오는 중...
         </p>
       )}
 
-      {state && (
-        <>
-          <KakaoSettingsPanel
-            initialSettings={state.kakaoSettings}
-            initialNotifications={state.kakaoNotifications}
-            applications={state.applications}
-          />
-
-          <ApplicantsTable initialApplications={state.applications} />
-        </>
-      )}
+      {applications && <ApplicantsTable initialApplications={applications} />}
     </div>
   );
 }

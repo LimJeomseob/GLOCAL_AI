@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TABLES } from "@/lib/db-tables";
-import { KAKAO_NOTICE_COLUMNS } from "@/lib/constants";
 import { formatDateTime, formatDateRange } from "@/lib/format";
 import { exportRowsAsCsv } from "@/lib/csv";
 import { issueCertificatesForApplications } from "@/lib/issueCertificate";
@@ -14,8 +13,6 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { APPLICATION_STATUSES, type ApplicationStatus, type ApplicationWithWorkshop } from "@/lib/types";
 
 const STATUS_OPTIONS = APPLICATION_STATUSES;
-
-type KakaoNoticeField = (typeof KAKAO_NOTICE_COLUMNS)[number]["field"];
 
 interface RowMessage {
   type: "success" | "error";
@@ -44,7 +41,6 @@ interface ColumnFilters {
   phone: string;
   email: string;
   certIssued: "전체" | "발급완료" | "미발급";
-  createdByAdmin: "전체" | "관리자 신청" | "본인 신청";
 }
 
 const INITIAL_COLUMN_FILTERS: ColumnFilters = {
@@ -55,17 +51,7 @@ const INITIAL_COLUMN_FILTERS: ColumnFilters = {
   phone: "",
   email: "",
   certIssued: "전체",
-  createdByAdmin: "전체",
 };
-
-type NoticeFilterValue = "전체" | "발송" | "미발송";
-type NoticeFilters = Record<KakaoNoticeField, NoticeFilterValue>;
-
-function buildInitialNoticeFilters(): NoticeFilters {
-  return Object.fromEntries(
-    KAKAO_NOTICE_COLUMNS.map(({ field }) => [field, "전체" as NoticeFilterValue])
-  ) as NoticeFilters;
-}
 
 /** 헤더 내부에 얹는 소형 텍스트 필터 입력 */
 function HeaderTextFilter({
@@ -130,13 +116,14 @@ export function ApplicantsTable({
   const [statusFilter, setStatusFilter] = useState<string>("전체");
   const [search, setSearch] = useState("");
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>(INITIAL_COLUMN_FILTERS);
-  const [noticeFilters, setNoticeFilters] = useState<NoticeFilters>(buildInitialNoticeFilters);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [rowMessages, setRowMessages] = useState<Record<string, RowMessage>>({});
   const [rowLoading, setRowLoading] = useState<Record<string, boolean>>({});
   const [bulkMessage, setBulkMessage] = useState<RowMessage | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState<ApplicationStatus>("신청완료");
+  const [statusLoading, setStatusLoading] = useState(false);
 
   const rounds = useMemo(() => {
     const byRound = new Map<number, string>();
@@ -174,34 +161,20 @@ export function ApplicantsTable({
         const wantIssued = columnFilters.certIssued === "발급완료";
         if (a.cert_issued !== wantIssued) return false;
       }
-      if (columnFilters.createdByAdmin !== "전체") {
-        const wantAdmin = columnFilters.createdByAdmin === "관리자 신청";
-        if (a.created_by_admin !== wantAdmin) return false;
-      }
-      for (const { field } of KAKAO_NOTICE_COLUMNS) {
-        const want = noticeFilters[field];
-        if (want !== "전체" && a[field] !== (want === "발송")) return false;
-      }
       return true;
     });
-  }, [applications, roundFilter, statusFilter, search, columnFilters, noticeFilters]);
+  }, [applications, roundFilter, statusFilter, search, columnFilters]);
 
   function updateColumnFilter<K extends keyof ColumnFilters>(key: K, value: ColumnFilters[K]) {
     setColumnFilters((prev) => ({ ...prev, [key]: value }));
   }
 
-  function updateNoticeFilter(field: KakaoNoticeField, value: NoticeFilterValue) {
-    setNoticeFilters((prev) => ({ ...prev, [field]: value }));
-  }
-
-  const hasActiveColumnFilters =
-    (Object.keys(columnFilters) as (keyof ColumnFilters)[]).some(
-      (key) => columnFilters[key] !== INITIAL_COLUMN_FILTERS[key]
-    ) || Object.values(noticeFilters).some((v) => v !== "전체");
+  const hasActiveColumnFilters = (Object.keys(columnFilters) as (keyof ColumnFilters)[]).some(
+    (key) => columnFilters[key] !== INITIAL_COLUMN_FILTERS[key]
+  );
 
   function resetColumnFilters() {
     setColumnFilters(INITIAL_COLUMN_FILTERS);
-    setNoticeFilters(buildInitialNoticeFilters());
   }
 
   function setRowMessage(id: string, message: RowMessage | null) {
@@ -383,18 +356,40 @@ export function ApplicantsTable({
     }
   }
 
-  async function handleNoticeToggle(id: string, field: KakaoNoticeField, next: boolean) {
-    setRowMessage(id, null);
-    // 낙관적 갱신 후 실패 시 롤백
-    setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, [field]: next } : a)));
-    const supabase = createSupabaseBrowserClient();
-    const { error } = await supabase
-      .from(TABLES.APPLICATIONS)
-      .update({ [field]: next })
-      .eq("id", id);
-    if (error) {
-      setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, [field]: !next } : a)));
-      setRowMessage(id, { type: "error", text: `발송 체크 저장 실패: ${error.message}` });
+  async function handleBulkStatusChange() {
+    setBulkMessage(null);
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    const ok = window.confirm(`선택한 ${ids.length}건의 상태를 '${bulkStatus}'(으)로 변경할까요?`);
+    if (!ok) return;
+
+    setStatusLoading(true);
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase
+        .from(TABLES.APPLICATIONS)
+        .update({ status: bulkStatus })
+        .in("id", ids);
+      if (error) {
+        setBulkMessage({ type: "error", text: `상태 변경에 실패했습니다: ${error.message}` });
+        return;
+      }
+      setApplications((prev) =>
+        prev.map((a) => (selectedIds.has(a.id) ? { ...a, status: bulkStatus } : a))
+      );
+      setBulkMessage({
+        type: "success",
+        text: `${ids.length}건의 상태가 '${bulkStatus}'(으)로 변경되었습니다.`,
+      });
+      router.refresh();
+    } catch (err) {
+      setBulkMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "네트워크 오류가 발생했습니다.",
+      });
+    } finally {
+      setStatusLoading(false);
     }
   }
 
@@ -423,14 +418,6 @@ export function ApplicantsTable({
         {
           header: "수료증 발급여부",
           accessor: (a: ApplicationWithWorkshop) => (a.cert_issued ? "발급완료" : "미발급"),
-        },
-        ...KAKAO_NOTICE_COLUMNS.map(({ field, label }) => ({
-          header: label,
-          accessor: (a: ApplicationWithWorkshop) => (a[field] ? "발송" : "미발송"),
-        })),
-        {
-          header: "관리자에 의한 신청",
-          accessor: (a: ApplicationWithWorkshop) => (a.created_by_admin ? "예" : "아니오"),
         },
       ],
       `신청자관리_${new Date().toISOString().slice(0, 10)}.csv`
@@ -509,16 +496,39 @@ export function ApplicantsTable({
             variant="secondary"
             size="sm"
             onClick={handleBulkIssue}
-            disabled={bulkLoading || selectedIds.size === 0}
+            disabled={bulkLoading || statusLoading || deleteLoading || selectedIds.size === 0}
           >
             {bulkLoading ? "발급 처리 중..." : "선택 항목 일괄발급"}
           </Button>
+          <div className="flex items-center gap-1">
+            <select
+              aria-label="일괄 변경할 상태"
+              value={bulkStatus}
+              onChange={(e) => setBulkStatus(e.target.value as ApplicationStatus)}
+              className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-accent"
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleBulkStatusChange}
+              disabled={statusLoading || bulkLoading || deleteLoading || selectedIds.size === 0}
+            >
+              {statusLoading ? "변경 중..." : "선택 항목 상태변경"}
+            </Button>
+          </div>
           <Button
             type="button"
             variant="danger"
             size="sm"
             onClick={handleBulkDelete}
-            disabled={deleteLoading || selectedIds.size === 0}
+            disabled={deleteLoading || bulkLoading || statusLoading || selectedIds.size === 0}
           >
             {deleteLoading ? "삭제 중..." : "선택 항목 삭제"}
           </Button>
@@ -548,7 +558,7 @@ export function ApplicantsTable({
           <caption className="sr-only">신청자 목록 및 상태·수료증 관리 테이블</caption>
           <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
             <tr>
-              <th scope="col" rowSpan={2} className="w-8 px-2 py-2 align-bottom">
+              <th scope="col" className="w-8 px-2 py-2">
                 <input
                   type="checkbox"
                   aria-label="현재 목록 전체 선택"
@@ -556,7 +566,7 @@ export function ApplicantsTable({
                   onChange={toggleSelectAllFiltered}
                 />
               </th>
-              <th scope="col" rowSpan={2} className="px-2 py-2 align-bottom">
+              <th scope="col" className="px-2 py-2">
                 <div className="flex flex-col gap-1">
                   <span>프로그램명</span>
                   <HeaderTextFilter
@@ -566,13 +576,13 @@ export function ApplicantsTable({
                   />
                 </div>
               </th>
-              <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
+              <th scope="col" className="w-20 px-2 py-2">
                 신청일
               </th>
-              <th scope="col" rowSpan={2} className="w-28 px-2 py-2 align-bottom">
+              <th scope="col" className="w-28 px-2 py-2">
                 프로그램 일시
               </th>
-              <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
+              <th scope="col" className="w-20 px-2 py-2">
                 <div className="flex flex-col gap-1">
                   <span>성명</span>
                   <HeaderTextFilter
@@ -582,7 +592,7 @@ export function ApplicantsTable({
                   />
                 </div>
               </th>
-              <th scope="col" rowSpan={2} className="px-2 py-2 align-bottom">
+              <th scope="col" className="px-2 py-2">
                 <div className="flex flex-col gap-1">
                   <span>소속</span>
                   <HeaderTextFilter
@@ -592,7 +602,7 @@ export function ApplicantsTable({
                   />
                 </div>
               </th>
-              <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
+              <th scope="col" className="w-20 px-2 py-2">
                 <div className="flex flex-col gap-1">
                   <span>교번/직번/학번/생년월일</span>
                   <HeaderTextFilter
@@ -602,7 +612,7 @@ export function ApplicantsTable({
                   />
                 </div>
               </th>
-              <th scope="col" rowSpan={2} className="w-24 px-2 py-2 align-bottom">
+              <th scope="col" className="w-24 px-2 py-2">
                 <div className="flex flex-col gap-1">
                   <span>연락처</span>
                   <HeaderTextFilter
@@ -612,7 +622,7 @@ export function ApplicantsTable({
                   />
                 </div>
               </th>
-              <th scope="col" rowSpan={2} className="px-2 py-2 align-bottom">
+              <th scope="col" className="px-2 py-2">
                 <div className="flex flex-col gap-1">
                   <span>이메일</span>
                   <HeaderTextFilter
@@ -622,13 +632,13 @@ export function ApplicantsTable({
                   />
                 </div>
               </th>
-              <th scope="col" rowSpan={2} className="w-24 px-2 py-2 align-bottom">
+              <th scope="col" className="w-24 px-2 py-2">
                 상태
               </th>
-              <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
+              <th scope="col" className="w-20 px-2 py-2">
                 이수처리
               </th>
-              <th scope="col" rowSpan={2} className="w-28 px-2 py-2 align-bottom">
+              <th scope="col" className="w-28 px-2 py-2">
                 <div className="flex flex-col gap-1">
                   <span>수료증</span>
                   <HeaderSelectFilter
@@ -639,39 +649,6 @@ export function ApplicantsTable({
                   />
                 </div>
               </th>
-              <th scope="colgroup" colSpan={3} className="px-1 py-1 text-center">
-                카톡 안내 발송
-              </th>
-              <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
-                <div className="flex flex-col gap-1">
-                  <span>관리자 신청</span>
-                  <HeaderSelectFilter
-                    label="관리자 신청"
-                    value={columnFilters.createdByAdmin}
-                    onChange={(v) => updateColumnFilter("createdByAdmin", v)}
-                    options={["전체", "관리자 신청", "본인 신청"] as const}
-                  />
-                </div>
-              </th>
-            </tr>
-            <tr>
-              {KAKAO_NOTICE_COLUMNS.map(({ field, label }) => (
-                <th
-                  key={field}
-                  scope="col"
-                  className="w-16 break-keep px-1 py-1 text-center text-[10px] leading-tight"
-                >
-                  <div className="flex flex-col items-center gap-1">
-                    <span>{label}</span>
-                    <HeaderSelectFilter
-                      label={label}
-                      value={noticeFilters[field]}
-                      onChange={(v) => updateNoticeFilter(field, v)}
-                      options={["전체", "발송", "미발송"] as const}
-                    />
-                  </div>
-                </th>
-              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -776,25 +753,12 @@ export function ApplicantsTable({
                       )}
                     </div>
                   </td>
-                  {KAKAO_NOTICE_COLUMNS.map(({ field, label }) => (
-                    <td key={field} className="px-1 py-2 text-center">
-                      <input
-                        type="checkbox"
-                        aria-label={`${a.name} ${label} 발송 여부`}
-                        checked={a[field]}
-                        onChange={(e) => handleNoticeToggle(a.id, field, e.target.checked)}
-                      />
-                    </td>
-                  ))}
-                  <td className="px-2 py-2">
-                    <BoolBadge value={a.created_by_admin} trueLabel="관리자 신청" falseLabel="본인 신청" />
-                  </td>
                 </tr>
               );
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={16} className="px-3 py-8 text-center text-sm text-slate-500">
+                <td colSpan={12} className="px-3 py-8 text-center text-sm text-slate-500">
                   조건에 맞는 신청 내역이 없습니다.
                 </td>
               </tr>
