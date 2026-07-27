@@ -1,5 +1,15 @@
 import type { WorkshopLevel, WorkshopSession } from "./types";
 
+/** applications 테이블의 안내메세지 확인 단계 필드명(물리 컬럼명은 과거 카톡 발송 체크 컬럼을 재사용) */
+export type NoticeField = "kakao_notice1_sent" | "kakao_notice2_sent" | "kakao_notice3_sent";
+
+/** 안내메세지 확인 단계 정의(1차 신청결과 안내 / 2차 수강안내 / 3차 최종수강안내) */
+export const NOTICE_COLUMNS: { field: NoticeField; label: string }[] = [
+  { field: "kakao_notice1_sent", label: "1차 신청결과 안내" },
+  { field: "kakao_notice2_sent", label: "2차 수강안내" },
+  { field: "kakao_notice3_sent", label: "3차 최종수강안내" },
+];
+
 export const PROGRAM_NAME = "일과 삶을 바꾸는 생성형 AI 실무과정";
 export const PROGRAM_FULL_TITLE =
   "모두의 AI를 위한 7~8월 AI활용 특강 — 일과 삶을 바꾸는 생성형 AI 실무과정";

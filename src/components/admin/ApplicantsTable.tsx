@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TABLES } from "@/lib/db-tables";
+import { NOTICE_COLUMNS, type NoticeField } from "@/lib/constants";
 import { formatDateTime, formatDateRange } from "@/lib/format";
 import { exportRowsAsCsv } from "@/lib/csv";
 import { issueCertificatesForApplications } from "@/lib/issueCertificate";
@@ -41,7 +42,6 @@ interface ColumnFilters {
   phone: string;
   email: string;
   certIssued: "전체" | "발급완료" | "미발급";
-  noticeConfirmed: "전체" | "확인" | "미확인";
 }
 
 const INITIAL_COLUMN_FILTERS: ColumnFilters = {
@@ -52,8 +52,16 @@ const INITIAL_COLUMN_FILTERS: ColumnFilters = {
   phone: "",
   email: "",
   certIssued: "전체",
-  noticeConfirmed: "전체",
 };
+
+type NoticeFilterValue = "전체" | "확인" | "미확인";
+type NoticeFilters = Record<NoticeField, NoticeFilterValue>;
+
+function buildInitialNoticeFilters(): NoticeFilters {
+  return Object.fromEntries(
+    NOTICE_COLUMNS.map(({ field }) => [field, "전체" as NoticeFilterValue])
+  ) as NoticeFilters;
+}
 
 /** 헤더 내부에 얹는 소형 텍스트 필터 입력 */
 function HeaderTextFilter({
@@ -118,6 +126,7 @@ export function ApplicantsTable({
   const [statusFilter, setStatusFilter] = useState<string>("전체");
   const [search, setSearch] = useState("");
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>(INITIAL_COLUMN_FILTERS);
+  const [noticeFilters, setNoticeFilters] = useState<NoticeFilters>(buildInitialNoticeFilters);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [rowMessages, setRowMessages] = useState<Record<string, RowMessage>>({});
   const [rowLoading, setRowLoading] = useState<Record<string, boolean>>({});
@@ -126,6 +135,7 @@ export function ApplicantsTable({
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [bulkStatus, setBulkStatus] = useState<ApplicationStatus>("신청완료");
   const [statusLoading, setStatusLoading] = useState(false);
+  const [bulkNoticeStage, setBulkNoticeStage] = useState<NoticeField>("kakao_notice1_sent");
   const [bulkNoticeConfirmed, setBulkNoticeConfirmed] = useState<"확인" | "미확인">("확인");
   const [noticeLoading, setNoticeLoading] = useState(false);
 
@@ -165,24 +175,30 @@ export function ApplicantsTable({
         const wantIssued = columnFilters.certIssued === "발급완료";
         if (a.cert_issued !== wantIssued) return false;
       }
-      if (columnFilters.noticeConfirmed !== "전체") {
-        const wantConfirmed = columnFilters.noticeConfirmed === "확인";
-        if ((a.notice_confirmed ?? false) !== wantConfirmed) return false;
+      for (const { field } of NOTICE_COLUMNS) {
+        const want = noticeFilters[field];
+        if (want !== "전체" && (a[field] ?? false) !== (want === "확인")) return false;
       }
       return true;
     });
-  }, [applications, roundFilter, statusFilter, search, columnFilters]);
+  }, [applications, roundFilter, statusFilter, search, columnFilters, noticeFilters]);
 
   function updateColumnFilter<K extends keyof ColumnFilters>(key: K, value: ColumnFilters[K]) {
     setColumnFilters((prev) => ({ ...prev, [key]: value }));
   }
 
-  const hasActiveColumnFilters = (Object.keys(columnFilters) as (keyof ColumnFilters)[]).some(
-    (key) => columnFilters[key] !== INITIAL_COLUMN_FILTERS[key]
-  );
+  function updateNoticeFilter(field: NoticeField, value: NoticeFilterValue) {
+    setNoticeFilters((prev) => ({ ...prev, [field]: value }));
+  }
+
+  const hasActiveColumnFilters =
+    (Object.keys(columnFilters) as (keyof ColumnFilters)[]).some(
+      (key) => columnFilters[key] !== INITIAL_COLUMN_FILTERS[key]
+    ) || Object.values(noticeFilters).some((v) => v !== "전체");
 
   function resetColumnFilters() {
     setColumnFilters(INITIAL_COLUMN_FILTERS);
+    setNoticeFilters(buildInitialNoticeFilters());
   }
 
   function setRowMessage(id: string, message: RowMessage | null) {
@@ -401,21 +417,17 @@ export function ApplicantsTable({
     }
   }
 
-  async function handleNoticeConfirmToggle(id: string, next: boolean) {
+  async function handleNoticeToggle(id: string, field: NoticeField, next: boolean) {
     setRowMessage(id, null);
     // 낙관적 갱신 후 실패 시 롤백
-    setApplications((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, notice_confirmed: next } : a))
-    );
+    setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, [field]: next } : a)));
     const supabase = createSupabaseBrowserClient();
     const { error } = await supabase
       .from(TABLES.APPLICATIONS)
-      .update({ notice_confirmed: next })
+      .update({ [field]: next })
       .eq("id", id);
     if (error) {
-      setApplications((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, notice_confirmed: !next } : a))
-      );
+      setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, [field]: !next } : a)));
       setRowMessage(id, { type: "error", text: `안내메세지 확인 저장 실패: ${error.message}` });
     }
   }
@@ -425,8 +437,10 @@ export function ApplicantsTable({
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
 
+    const stageLabel =
+      NOTICE_COLUMNS.find((c) => c.field === bulkNoticeStage)?.label ?? bulkNoticeStage;
     const ok = window.confirm(
-      `선택한 ${ids.length}건의 안내메세지 확인을 '${bulkNoticeConfirmed}' 상태로 변경할까요?`
+      `선택한 ${ids.length}건의 '${stageLabel}' 확인을 '${bulkNoticeConfirmed}' 상태로 변경할까요?`
     );
     if (!ok) return;
 
@@ -436,7 +450,7 @@ export function ApplicantsTable({
       const supabase = createSupabaseBrowserClient();
       const { error } = await supabase
         .from(TABLES.APPLICATIONS)
-        .update({ notice_confirmed: nextValue })
+        .update({ [bulkNoticeStage]: nextValue })
         .in("id", ids);
       if (error) {
         setBulkMessage({
@@ -446,11 +460,11 @@ export function ApplicantsTable({
         return;
       }
       setApplications((prev) =>
-        prev.map((a) => (selectedIds.has(a.id) ? { ...a, notice_confirmed: nextValue } : a))
+        prev.map((a) => (selectedIds.has(a.id) ? { ...a, [bulkNoticeStage]: nextValue } : a))
       );
       setBulkMessage({
         type: "success",
-        text: `${ids.length}건의 안내메세지 확인이 '${bulkNoticeConfirmed}' 상태로 변경되었습니다.`,
+        text: `${ids.length}건의 '${stageLabel}' 확인이 '${bulkNoticeConfirmed}' 상태로 변경되었습니다.`,
       });
       router.refresh();
     } catch (err) {
@@ -489,10 +503,10 @@ export function ApplicantsTable({
           header: "수료증 발급여부",
           accessor: (a: ApplicationWithWorkshop) => (a.cert_issued ? "발급완료" : "미발급"),
         },
-        {
-          header: "안내메세지 확인",
-          accessor: (a: ApplicationWithWorkshop) => (a.notice_confirmed ? "확인" : "미확인"),
-        },
+        ...NOTICE_COLUMNS.map(({ field, label }) => ({
+          header: `안내메세지 확인 - ${label}`,
+          accessor: (a: ApplicationWithWorkshop) => (a[field] ? "확인" : "미확인"),
+        })),
       ],
       `신청자관리_${new Date().toISOString().slice(0, 10)}.csv`
     );
@@ -603,6 +617,18 @@ export function ApplicantsTable({
           </div>
           <div className="flex items-center gap-1">
             <select
+              aria-label="일괄 변경할 안내메세지 단계"
+              value={bulkNoticeStage}
+              onChange={(e) => setBulkNoticeStage(e.target.value as NoticeField)}
+              className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-accent"
+            >
+              {NOTICE_COLUMNS.map(({ field, label }) => (
+                <option key={field} value={field}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <select
               aria-label="일괄 변경할 안내메세지 확인 상태"
               value={bulkNoticeConfirmed}
               onChange={(e) => setBulkNoticeConfirmed(e.target.value as "확인" | "미확인")}
@@ -660,7 +686,7 @@ export function ApplicantsTable({
           <caption className="sr-only">신청자 목록 및 상태·수료증 관리 테이블</caption>
           <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
             <tr>
-              <th scope="col" className="w-8 px-2 py-2">
+              <th scope="col" rowSpan={2} className="w-8 px-2 py-2 align-bottom">
                 <input
                   type="checkbox"
                   aria-label="현재 목록 전체 선택"
@@ -668,7 +694,7 @@ export function ApplicantsTable({
                   onChange={toggleSelectAllFiltered}
                 />
               </th>
-              <th scope="col" className="px-2 py-2">
+              <th scope="col" rowSpan={2} className="px-2 py-2 align-bottom">
                 <div className="flex flex-col gap-1">
                   <span>프로그램명</span>
                   <HeaderTextFilter
@@ -678,13 +704,13 @@ export function ApplicantsTable({
                   />
                 </div>
               </th>
-              <th scope="col" className="w-20 px-2 py-2">
+              <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
                 신청일
               </th>
-              <th scope="col" className="w-28 px-2 py-2">
+              <th scope="col" rowSpan={2} className="w-28 px-2 py-2 align-bottom">
                 프로그램 일시
               </th>
-              <th scope="col" className="w-20 px-2 py-2">
+              <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
                 <div className="flex flex-col gap-1">
                   <span>성명</span>
                   <HeaderTextFilter
@@ -694,7 +720,7 @@ export function ApplicantsTable({
                   />
                 </div>
               </th>
-              <th scope="col" className="px-2 py-2">
+              <th scope="col" rowSpan={2} className="px-2 py-2 align-bottom">
                 <div className="flex flex-col gap-1">
                   <span>소속</span>
                   <HeaderTextFilter
@@ -704,7 +730,7 @@ export function ApplicantsTable({
                   />
                 </div>
               </th>
-              <th scope="col" className="w-20 px-2 py-2">
+              <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
                 <div className="flex flex-col gap-1">
                   <span>교번/직번/학번/생년월일</span>
                   <HeaderTextFilter
@@ -714,7 +740,7 @@ export function ApplicantsTable({
                   />
                 </div>
               </th>
-              <th scope="col" className="w-24 px-2 py-2">
+              <th scope="col" rowSpan={2} className="w-24 px-2 py-2 align-bottom">
                 <div className="flex flex-col gap-1">
                   <span>연락처</span>
                   <HeaderTextFilter
@@ -724,7 +750,7 @@ export function ApplicantsTable({
                   />
                 </div>
               </th>
-              <th scope="col" className="px-2 py-2">
+              <th scope="col" rowSpan={2} className="px-2 py-2 align-bottom">
                 <div className="flex flex-col gap-1">
                   <span>이메일</span>
                   <HeaderTextFilter
@@ -734,13 +760,13 @@ export function ApplicantsTable({
                   />
                 </div>
               </th>
-              <th scope="col" className="w-24 px-2 py-2">
+              <th scope="col" rowSpan={2} className="w-24 px-2 py-2 align-bottom">
                 상태
               </th>
-              <th scope="col" className="w-20 px-2 py-2">
+              <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
                 이수처리
               </th>
-              <th scope="col" className="w-28 px-2 py-2">
+              <th scope="col" rowSpan={2} className="w-28 px-2 py-2 align-bottom">
                 <div className="flex flex-col gap-1">
                   <span>수료증</span>
                   <HeaderSelectFilter
@@ -751,17 +777,28 @@ export function ApplicantsTable({
                   />
                 </div>
               </th>
-              <th scope="col" className="w-20 break-keep px-2 py-2">
-                <div className="flex flex-col gap-1">
-                  <span>안내메세지 확인</span>
-                  <HeaderSelectFilter
-                    label="안내메세지 확인"
-                    value={columnFilters.noticeConfirmed}
-                    onChange={(v) => updateColumnFilter("noticeConfirmed", v)}
-                    options={["전체", "확인", "미확인"] as const}
-                  />
-                </div>
+              <th scope="colgroup" colSpan={3} className="px-1 py-1 text-center">
+                안내메세지 확인
               </th>
+            </tr>
+            <tr>
+              {NOTICE_COLUMNS.map(({ field, label }) => (
+                <th
+                  key={field}
+                  scope="col"
+                  className="w-16 break-keep px-1 py-1 text-center text-[10px] leading-tight"
+                >
+                  <div className="flex flex-col items-center gap-1">
+                    <span>{label}</span>
+                    <HeaderSelectFilter
+                      label={label}
+                      value={noticeFilters[field]}
+                      onChange={(v) => updateNoticeFilter(field, v)}
+                      options={["전체", "확인", "미확인"] as const}
+                    />
+                  </div>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -866,20 +903,22 @@ export function ApplicantsTable({
                       )}
                     </div>
                   </td>
-                  <td className="px-2 py-2 text-center">
-                    <input
-                      type="checkbox"
-                      aria-label={`${a.name} 안내메세지 확인 여부`}
-                      checked={a.notice_confirmed ?? false}
-                      onChange={(e) => handleNoticeConfirmToggle(a.id, e.target.checked)}
-                    />
-                  </td>
+                  {NOTICE_COLUMNS.map(({ field, label }) => (
+                    <td key={field} className="px-1 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        aria-label={`${a.name} ${label} 확인 여부`}
+                        checked={a[field] ?? false}
+                        onChange={(e) => handleNoticeToggle(a.id, field, e.target.checked)}
+                      />
+                    </td>
+                  ))}
                 </tr>
               );
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={13} className="px-3 py-8 text-center text-sm text-slate-500">
+                <td colSpan={15} className="px-3 py-8 text-center text-sm text-slate-500">
                   조건에 맞는 신청 내역이 없습니다.
                 </td>
               </tr>
