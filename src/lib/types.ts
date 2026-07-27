@@ -50,6 +50,8 @@ export interface Application {
   consent: boolean;
   status: ApplicationStatus;
   cert_issued: boolean;
+  /** 안내메세지 확인 여부(관리자 수동 체크, 0008 마이그레이션) */
+  notice_confirmed: boolean;
   created_by_admin: boolean;
   created_at: string;
 }

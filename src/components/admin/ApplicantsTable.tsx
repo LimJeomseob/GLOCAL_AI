@@ -41,6 +41,7 @@ interface ColumnFilters {
   phone: string;
   email: string;
   certIssued: "전체" | "발급완료" | "미발급";
+  noticeConfirmed: "전체" | "확인" | "미확인";
 }
 
 const INITIAL_COLUMN_FILTERS: ColumnFilters = {
@@ -51,6 +52,7 @@ const INITIAL_COLUMN_FILTERS: ColumnFilters = {
   phone: "",
   email: "",
   certIssued: "전체",
+  noticeConfirmed: "전체",
 };
 
 /** 헤더 내부에 얹는 소형 텍스트 필터 입력 */
@@ -124,6 +126,8 @@ export function ApplicantsTable({
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [bulkStatus, setBulkStatus] = useState<ApplicationStatus>("신청완료");
   const [statusLoading, setStatusLoading] = useState(false);
+  const [bulkNoticeConfirmed, setBulkNoticeConfirmed] = useState<"확인" | "미확인">("확인");
+  const [noticeLoading, setNoticeLoading] = useState(false);
 
   const rounds = useMemo(() => {
     const byRound = new Map<number, string>();
@@ -160,6 +164,10 @@ export function ApplicantsTable({
       if (columnFilters.certIssued !== "전체") {
         const wantIssued = columnFilters.certIssued === "발급완료";
         if (a.cert_issued !== wantIssued) return false;
+      }
+      if (columnFilters.noticeConfirmed !== "전체") {
+        const wantConfirmed = columnFilters.noticeConfirmed === "확인";
+        if ((a.notice_confirmed ?? false) !== wantConfirmed) return false;
       }
       return true;
     });
@@ -393,6 +401,68 @@ export function ApplicantsTable({
     }
   }
 
+  async function handleNoticeConfirmToggle(id: string, next: boolean) {
+    setRowMessage(id, null);
+    // 낙관적 갱신 후 실패 시 롤백
+    setApplications((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, notice_confirmed: next } : a))
+    );
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase
+      .from(TABLES.APPLICATIONS)
+      .update({ notice_confirmed: next })
+      .eq("id", id);
+    if (error) {
+      setApplications((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, notice_confirmed: !next } : a))
+      );
+      setRowMessage(id, { type: "error", text: `안내메세지 확인 저장 실패: ${error.message}` });
+    }
+  }
+
+  async function handleBulkNoticeConfirmChange() {
+    setBulkMessage(null);
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    const ok = window.confirm(
+      `선택한 ${ids.length}건의 안내메세지 확인을 '${bulkNoticeConfirmed}' 상태로 변경할까요?`
+    );
+    if (!ok) return;
+
+    const nextValue = bulkNoticeConfirmed === "확인";
+    setNoticeLoading(true);
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase
+        .from(TABLES.APPLICATIONS)
+        .update({ notice_confirmed: nextValue })
+        .in("id", ids);
+      if (error) {
+        setBulkMessage({
+          type: "error",
+          text: `안내메세지 확인 변경에 실패했습니다: ${error.message}`,
+        });
+        return;
+      }
+      setApplications((prev) =>
+        prev.map((a) => (selectedIds.has(a.id) ? { ...a, notice_confirmed: nextValue } : a))
+      );
+      setBulkMessage({
+        type: "success",
+        text: `${ids.length}건의 안내메세지 확인이 '${bulkNoticeConfirmed}' 상태로 변경되었습니다.`,
+      });
+      router.refresh();
+    } catch (err) {
+      setBulkMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "네트워크 오류가 발생했습니다.",
+      });
+    } finally {
+      setNoticeLoading(false);
+    }
+  }
+
   function handleExportCsv() {
     exportRowsAsCsv(
       filtered,
@@ -418,6 +488,10 @@ export function ApplicantsTable({
         {
           header: "수료증 발급여부",
           accessor: (a: ApplicationWithWorkshop) => (a.cert_issued ? "발급완료" : "미발급"),
+        },
+        {
+          header: "안내메세지 확인",
+          accessor: (a: ApplicationWithWorkshop) => (a.notice_confirmed ? "확인" : "미확인"),
         },
       ],
       `신청자관리_${new Date().toISOString().slice(0, 10)}.csv`
@@ -496,7 +570,9 @@ export function ApplicantsTable({
             variant="secondary"
             size="sm"
             onClick={handleBulkIssue}
-            disabled={bulkLoading || statusLoading || deleteLoading || selectedIds.size === 0}
+            disabled={
+              bulkLoading || statusLoading || noticeLoading || deleteLoading || selectedIds.size === 0
+            }
           >
             {bulkLoading ? "발급 처리 중..." : "선택 항목 일괄발급"}
           </Button>
@@ -518,9 +594,33 @@ export function ApplicantsTable({
               variant="secondary"
               size="sm"
               onClick={handleBulkStatusChange}
-              disabled={statusLoading || bulkLoading || deleteLoading || selectedIds.size === 0}
+              disabled={
+                statusLoading || bulkLoading || noticeLoading || deleteLoading || selectedIds.size === 0
+              }
             >
               {statusLoading ? "변경 중..." : "선택 항목 상태변경"}
+            </Button>
+          </div>
+          <div className="flex items-center gap-1">
+            <select
+              aria-label="일괄 변경할 안내메세지 확인 상태"
+              value={bulkNoticeConfirmed}
+              onChange={(e) => setBulkNoticeConfirmed(e.target.value as "확인" | "미확인")}
+              className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-accent"
+            >
+              <option value="확인">확인</option>
+              <option value="미확인">미확인</option>
+            </select>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleBulkNoticeConfirmChange}
+              disabled={
+                noticeLoading || bulkLoading || statusLoading || deleteLoading || selectedIds.size === 0
+              }
+            >
+              {noticeLoading ? "변경 중..." : "선택 항목 안내확인 변경"}
             </Button>
           </div>
           <Button
@@ -528,7 +628,9 @@ export function ApplicantsTable({
             variant="danger"
             size="sm"
             onClick={handleBulkDelete}
-            disabled={deleteLoading || bulkLoading || statusLoading || selectedIds.size === 0}
+            disabled={
+              deleteLoading || bulkLoading || statusLoading || noticeLoading || selectedIds.size === 0
+            }
           >
             {deleteLoading ? "삭제 중..." : "선택 항목 삭제"}
           </Button>
@@ -649,6 +751,17 @@ export function ApplicantsTable({
                   />
                 </div>
               </th>
+              <th scope="col" className="w-20 break-keep px-2 py-2">
+                <div className="flex flex-col gap-1">
+                  <span>안내메세지 확인</span>
+                  <HeaderSelectFilter
+                    label="안내메세지 확인"
+                    value={columnFilters.noticeConfirmed}
+                    onChange={(v) => updateColumnFilter("noticeConfirmed", v)}
+                    options={["전체", "확인", "미확인"] as const}
+                  />
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -753,12 +866,20 @@ export function ApplicantsTable({
                       )}
                     </div>
                   </td>
+                  <td className="px-2 py-2 text-center">
+                    <input
+                      type="checkbox"
+                      aria-label={`${a.name} 안내메세지 확인 여부`}
+                      checked={a.notice_confirmed ?? false}
+                      onChange={(e) => handleNoticeConfirmToggle(a.id, e.target.checked)}
+                    />
+                  </td>
                 </tr>
               );
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={12} className="px-3 py-8 text-center text-sm text-slate-500">
+                <td colSpan={13} className="px-3 py-8 text-center text-sm text-slate-500">
                   조건에 맞는 신청 내역이 없습니다.
                 </td>
               </tr>
