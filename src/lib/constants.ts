@@ -120,7 +120,7 @@ export const WORKSHOP_SEEDS: WorkshopSeed[] = [
     capacity: 100,
     startAt: "2026-07-29T14:00:00+09:00",
     endAt: "2026-07-29T16:00:00+09:00",
-    deadline: "2026-07-27T14:00:00+09:00",
+    deadline: "2026-07-29T10:00:00+09:00",
     applyOpenAt: APPLICATION_OPEN_AT,
     level: "초급",
     target: "전체",
