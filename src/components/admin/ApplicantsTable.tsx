@@ -9,6 +9,8 @@ import { NOTICE_COLUMNS, type NoticeField } from "@/lib/constants";
 import { formatDateTime, formatDateRange } from "@/lib/format";
 import { exportRowsAsCsv } from "@/lib/csv";
 import { issueCertificatesForApplications } from "@/lib/issueCertificate";
+import { adminApplicationSchema, normalizePhone } from "@/lib/validation";
+import { deriveWorkshopStatus, fetchWorkshopsWithAvailability } from "@/lib/workshops";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { APPLICATION_STATUSES, type ApplicationStatus, type ApplicationWithWorkshop } from "@/lib/types";
@@ -115,6 +117,99 @@ function HeaderSelectFilter<T extends string>({
   );
 }
 
+/**
+ * 관리자가 등록한 건(created_by_admin)을 표에서 구분하는 테두리.
+ * 표가 border-collapse이고 tbody가 divide-y(= tr의 border-top)를 쓰므로 tr에 border를 주면
+ * 충돌한다. 따라서 셀(td) 테두리로 행 전체를 감싸는 박스를 그린다.
+ * 색은 violet 고정 — amber(전역 포커스 링·대기)·blue(신청완료)·emerald(이수)·red(오류)·slate(취소)와
+ * 의미가 겹치지 않는 유일한 계열이다.
+ */
+const ADMIN_ROW_BORDER_CLASS =
+  "[&>td]:border-y-2 [&>td]:border-violet-500 [&>td:first-child]:border-l-2 [&>td:last-child]:border-r-2";
+
+const DRAFT_INPUT_CLASS =
+  "w-full min-w-0 rounded border border-slate-300 bg-white px-1.5 py-1 text-[11px] font-normal text-slate-800 placeholder:text-slate-400 focus:border-accent disabled:bg-slate-100 disabled:text-slate-400";
+
+const DRAFT_ERROR_CLASS = "mt-1 text-[10px] font-medium leading-tight text-red-600";
+
+/** 참여자 추가 입력 행에서 쓰는 회차 옵션(전체 회차 — 마감·오픈 전 회차도 관리자는 선택 가능) */
+interface DraftWorkshopOption {
+  id: string;
+  roundLabel: string;
+  topic: string;
+  startAt: string;
+  endAt: string;
+  remaining: number;
+  isNotYetOpen: boolean;
+  isClosed: boolean;
+}
+
+function draftWorkshopLabel(w: DraftWorkshopOption): string {
+  const state = w.isNotYetOpen ? "신청 예정" : w.isClosed ? "마감" : null;
+  const tags = [state, `잔여 ${w.remaining}명`].filter(Boolean).join(" · ");
+  return `${w.roundLabel} - ${w.topic} (${formatDateRange(w.startAt, w.endAt)}) · ${tags}`;
+}
+
+/** 참여자 추가 입력 행의 텍스트 입력 셀 */
+function DraftTextCell({
+  label,
+  value,
+  onChange,
+  error,
+  type = "text",
+  placeholder,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  error?: string;
+  type?: "text" | "tel" | "email";
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <td className="px-2 py-2">
+      <input
+        type={type}
+        value={value}
+        aria-label={`추가할 참여자의 ${label}`}
+        aria-invalid={!!error}
+        placeholder={placeholder}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className={DRAFT_INPUT_CLASS}
+      />
+      {error && <p className={DRAFT_ERROR_CLASS}>{error}</p>}
+    </td>
+  );
+}
+
+/** 관리자가 직접 등록하는 참여자 입력 행의 값 */
+interface DraftRow {
+  workshopId: string;
+  name: string;
+  affiliation: string;
+  idNumber: string;
+  phone: string;
+  email: string;
+  consent: boolean;
+  status: ApplicationStatus;
+}
+
+const INITIAL_DRAFT: DraftRow = {
+  workshopId: "",
+  name: "",
+  affiliation: "",
+  idNumber: "",
+  phone: "",
+  email: "",
+  consent: false,
+  status: "신청완료",
+};
+
+type DraftFieldErrors = Partial<Record<keyof DraftRow, string>>;
+
 export function ApplicantsTable({
   initialApplications,
 }: {
@@ -138,6 +233,14 @@ export function ApplicantsTable({
   const [bulkNoticeStage, setBulkNoticeStage] = useState<NoticeField>("kakao_notice1_sent");
   const [bulkNoticeConfirmed, setBulkNoticeConfirmed] = useState<"확인" | "미확인">("확인");
   const [noticeLoading, setNoticeLoading] = useState(false);
+  // 참여자 추가(관리자 직접 등록) 입력 행 — null이면 행이 닫힌 상태
+  const [draft, setDraft] = useState<DraftRow | null>(null);
+  const [draftErrors, setDraftErrors] = useState<DraftFieldErrors>({});
+  const [draftMessage, setDraftMessage] = useState<RowMessage | null>(null);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [workshopOptions, setWorkshopOptions] = useState<DraftWorkshopOption[] | null>(null);
+  const [workshopOptionsLoading, setWorkshopOptionsLoading] = useState(false);
+  const [workshopOptionsError, setWorkshopOptionsError] = useState<string | null>(null);
 
   const rounds = useMemo(() => {
     const byRound = new Map<number, string>();
@@ -477,6 +580,164 @@ export function ApplicantsTable({
     }
   }
 
+  /** 참여자 추가용 회차 목록. 표는 존재하는 신청 건에서만 회차를 뽑으므로 전체 회차를 따로 로드한다. */
+  async function loadWorkshopOptions() {
+    if (workshopOptions || workshopOptionsLoading) return;
+    setWorkshopOptionsLoading(true);
+    setWorkshopOptionsError(null);
+    try {
+      const { workshops, appliedCountByWorkshopId } = await fetchWorkshopsWithAvailability();
+      const now = Date.now();
+      setWorkshopOptions(
+        workshops.map((w) => ({
+          id: w.id,
+          roundLabel: w.round_label || `${w.round}차`,
+          topic: w.topic,
+          startAt: w.start_at,
+          endAt: w.end_at,
+          ...deriveWorkshopStatus(w, appliedCountByWorkshopId.get(w.id) ?? 0, now),
+        }))
+      );
+    } catch (err) {
+      setWorkshopOptionsError(
+        err instanceof Error ? err.message : "회차 정보를 불러오지 못했습니다."
+      );
+    } finally {
+      setWorkshopOptionsLoading(false);
+    }
+  }
+
+  function handleOpenDraft() {
+    setDraftErrors({});
+    setDraftMessage(null);
+    setDraft((prev) => prev ?? { ...INITIAL_DRAFT });
+    void loadWorkshopOptions();
+  }
+
+  function handleCloseDraft() {
+    setDraft(null);
+    setDraftErrors({});
+    setDraftMessage(null);
+  }
+
+  function updateDraftField<K extends keyof DraftRow>(key: K, value: DraftRow[K]) {
+    setDraft((prev) => (prev ? { ...prev, [key]: value } : prev));
+  }
+
+  async function handleDraftSave() {
+    if (!draft) return;
+    setDraftMessage(null);
+
+    const parsed = adminApplicationSchema.safeParse({
+      workshopId: draft.workshopId,
+      name: draft.name,
+      affiliation: draft.affiliation,
+      idNumber: draft.idNumber,
+      phone: draft.phone,
+      email: draft.email,
+      consent: draft.consent,
+    });
+
+    if (!parsed.success) {
+      const fieldErrors: DraftFieldErrors = {};
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0] as keyof DraftRow;
+        if (!fieldErrors[key]) fieldErrors[key] = issue.message;
+      }
+      setDraftErrors(fieldErrors);
+      return;
+    }
+
+    setDraftErrors({});
+
+    // 같은 회차에 같은 연락처가 이미 있으면 확인만 받고 진행한다(대리 신청·재등록 여지를 남긴다).
+    const phoneKey = normalizePhone(parsed.data.phone);
+    const duplicate = applications.find(
+      (a) => a.workshop_id === parsed.data.workshopId && normalizePhone(a.phone) === phoneKey
+    );
+    if (duplicate) {
+      const ok = window.confirm(
+        `같은 회차에 동일한 연락처로 등록된 신청 건이 이미 있습니다. (${duplicate.name} · ${duplicate.status})\n그래도 등록할까요?`
+      );
+      if (!ok) return;
+    }
+
+    setDraftSaving(true);
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { data, error } = await supabase
+        .from(TABLES.APPLICATIONS)
+        .insert({
+          workshop_id: parsed.data.workshopId,
+          name: parsed.data.name,
+          affiliation: parsed.data.affiliation,
+          id_number: parsed.data.idNumber,
+          phone: parsed.data.phone,
+          email: parsed.data.email,
+          consent: parsed.data.consent,
+          status: draft.status,
+          created_by_admin: true,
+        })
+        // 표 본문이 a.workshop.*를 가드 없이 참조하므로 임베드까지 함께 받아 온다.
+        .select("*, workshop:workshops(*)")
+        .returns<ApplicationWithWorkshop[]>()
+        .single();
+
+      if (error || !data) {
+        setDraftMessage({
+          type: "error",
+          text: `등록에 실패했습니다: ${error?.message ?? "응답을 확인할 수 없습니다."}`,
+        });
+        return;
+      }
+
+      // PostgREST가 to-one 임베드를 배열로 돌려주는 경우가 있어 페이지와 동일하게 정규화한다.
+      const inserted: ApplicationWithWorkshop = {
+        ...data,
+        workshop: Array.isArray(data.workshop) ? data.workshop[0] : data.workshop,
+      };
+
+      // 목록은 created_at 내림차순이므로 맨 앞에 붙인다.
+      setApplications((prev) => [inserted, ...prev]);
+
+      // 정원 집계(신청완료·이수)에 포함되는 상태면 잔여 표기를 맞춰 준다.
+      if (draft.status === "신청완료" || draft.status === "이수") {
+        setWorkshopOptions((prev) =>
+          prev
+            ? prev.map((w) => {
+                if (w.id !== inserted.workshop_id) return w;
+                const remaining = w.remaining - 1;
+                return { ...w, remaining, isClosed: w.isClosed || remaining <= 0 };
+              })
+            : prev
+        );
+      }
+
+      // 연달아 등록할 수 있도록 회차·상태는 유지하고 인적 정보만 비운다.
+      setDraft({ ...INITIAL_DRAFT, workshopId: draft.workshopId, status: draft.status });
+      // 필터가 걸려 있으면 방금 추가한 행이 목록에서 걸러질 수 있으므로 함께 알린다.
+      const filterHint =
+        roundFilter !== "전체" ||
+        statusFilter !== "전체" ||
+        search.trim() !== "" ||
+        hasActiveColumnFilters
+          ? " (필터 조건에 따라 목록에 보이지 않을 수 있습니다.)"
+          : "";
+      setDraftMessage({
+        type: "success",
+        text: `${inserted.name} 참여자가 등록되었습니다. 이어서 추가 등록할 수 있습니다.${filterHint}`,
+      });
+      router.refresh();
+    } catch (err) {
+      setDraftMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "네트워크 오류가 발생했습니다.",
+      });
+    } finally {
+      setDraftSaving(false);
+    }
+  }
+
   function handleExportCsv() {
     exportRowsAsCsv(
       filtered,
@@ -514,6 +775,11 @@ export function ApplicantsTable({
 
   const allFilteredSelected =
     filtered.length > 0 && filtered.every((a) => selectedIds.has(a.id));
+
+  const hasAdminCreated = applications.some((a) => a.created_by_admin);
+  const draftWorkshop = draft
+    ? workshopOptions?.find((w) => w.id === draft.workshopId)
+    : undefined;
 
   return (
     <section className="flex flex-col gap-4">
@@ -571,6 +837,17 @@ export function ApplicantsTable({
         </div>
 
         <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={handleOpenDraft}
+            disabled={
+              !!draft || bulkLoading || statusLoading || noticeLoading || deleteLoading
+            }
+          >
+            참여자 추가
+          </Button>
           {hasActiveColumnFilters && (
             <Button type="button" variant="outline" size="sm" onClick={resetColumnFilters}>
               표 필터 초기화
@@ -677,9 +954,20 @@ export function ApplicantsTable({
         </p>
       )}
 
-      <p className="text-sm text-slate-500">
-        총 {filtered.length}건 (전체 {applications.length}건 중), 선택됨 {selectedIds.size}건
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-slate-500">
+          총 {filtered.length}건 (전체 {applications.length}건 중), 선택됨 {selectedIds.size}건
+        </p>
+        {(hasAdminCreated || draft) && (
+          <p className="flex items-center gap-2 text-xs text-slate-500">
+            <span
+              aria-hidden="true"
+              className="inline-block h-3 w-6 rounded-sm border-2 border-violet-500 bg-violet-50"
+            />
+            관리자 등록 건
+          </p>
+        )}
+      </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-card">
         <table className="w-full table-fixed border-collapse text-left text-xs">
@@ -802,11 +1090,167 @@ export function ApplicantsTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
+            {draft && (
+              <>
+                <tr className={clsx("align-top bg-violet-50", ADMIN_ROW_BORDER_CLASS)}>
+                  <td className="px-2 py-2" />
+                  <td className="px-2 py-2">
+                    <select
+                      aria-label="추가할 참여자의 회차"
+                      aria-invalid={!!draftErrors.workshopId}
+                      value={draft.workshopId}
+                      disabled={draftSaving || workshopOptionsLoading}
+                      onChange={(e) => updateDraftField("workshopId", e.target.value)}
+                      className={DRAFT_INPUT_CLASS}
+                    >
+                      <option value="">
+                        {workshopOptionsLoading ? "회차 불러오는 중..." : "회차 선택"}
+                      </option>
+                      {(workshopOptions ?? []).map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {draftWorkshopLabel(w)}
+                        </option>
+                      ))}
+                    </select>
+                    {workshopOptionsError && (
+                      <p className={DRAFT_ERROR_CLASS}>{workshopOptionsError}</p>
+                    )}
+                    {draftErrors.workshopId && (
+                      <p className={DRAFT_ERROR_CLASS}>{draftErrors.workshopId}</p>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 text-slate-400">자동</td>
+                  <td className="break-keep px-2 py-2 text-slate-600">
+                    {draftWorkshop
+                      ? `${draftWorkshop.roundLabel} · ${formatDateRange(
+                          draftWorkshop.startAt,
+                          draftWorkshop.endAt
+                        )}`
+                      : "-"}
+                  </td>
+                  <DraftTextCell
+                    label="성명"
+                    value={draft.name}
+                    error={draftErrors.name}
+                    disabled={draftSaving}
+                    onChange={(v) => updateDraftField("name", v)}
+                  />
+                  <DraftTextCell
+                    label="소속"
+                    value={draft.affiliation}
+                    error={draftErrors.affiliation}
+                    disabled={draftSaving}
+                    onChange={(v) => updateDraftField("affiliation", v)}
+                  />
+                  <DraftTextCell
+                    label="교번/직번/학번/생년월일"
+                    value={draft.idNumber}
+                    error={draftErrors.idNumber}
+                    disabled={draftSaving}
+                    onChange={(v) => updateDraftField("idNumber", v)}
+                  />
+                  <DraftTextCell
+                    label="연락처"
+                    type="tel"
+                    placeholder="010-1234-5678"
+                    value={draft.phone}
+                    error={draftErrors.phone}
+                    disabled={draftSaving}
+                    onChange={(v) => updateDraftField("phone", v)}
+                  />
+                  <DraftTextCell
+                    label="이메일"
+                    type="email"
+                    placeholder="선택(모르면 비움)"
+                    value={draft.email}
+                    error={draftErrors.email}
+                    disabled={draftSaving}
+                    onChange={(v) => updateDraftField("email", v)}
+                  />
+                  <td className="px-2 py-2">
+                    <select
+                      aria-label="추가할 참여자의 상태"
+                      value={draft.status}
+                      disabled={draftSaving}
+                      onChange={(e) =>
+                        updateDraftField("status", e.target.value as ApplicationStatus)
+                      }
+                      className={DRAFT_INPUT_CLASS}
+                    >
+                      {STATUS_OPTIONS.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td colSpan={5} className="px-2 py-2">
+                    <div className="flex flex-col gap-2">
+                      <label className="flex items-start gap-1.5 text-[11px] font-medium leading-tight text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={draft.consent}
+                          disabled={draftSaving}
+                          aria-invalid={!!draftErrors.consent}
+                          onChange={(e) => updateDraftField("consent", e.target.checked)}
+                          className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-accent focus:ring-accent"
+                        />
+                        <span>개인정보 수집·이용 동의를 받았음을 확인합니다. (필수)</span>
+                      </label>
+                      {draftErrors.consent && (
+                        <p className={DRAFT_ERROR_CLASS}>{draftErrors.consent}</p>
+                      )}
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          disabled={draftSaving}
+                          onClick={handleDraftSave}
+                        >
+                          {draftSaving ? "저장 중..." : "저장"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={draftSaving}
+                          onClick={handleCloseDraft}
+                        >
+                          닫기
+                        </Button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                {draftMessage && (
+                  <tr>
+                    <td colSpan={15} className="px-3 py-2">
+                      <p
+                        role="alert"
+                        className={clsx(
+                          "text-xs font-medium",
+                          draftMessage.type === "success" ? "text-emerald-700" : "text-red-600"
+                        )}
+                      >
+                        {draftMessage.text}
+                      </p>
+                    </td>
+                  </tr>
+                )}
+              </>
+            )}
             {filtered.map((a) => {
               const isLoading = !!rowLoading[a.id];
               const message = rowMessages[a.id];
               return (
-                <tr key={a.id} className="align-top">
+                <tr
+                  key={a.id}
+                  className={clsx(
+                    "align-top",
+                    a.created_by_admin && `bg-violet-50/50 ${ADMIN_ROW_BORDER_CLASS}`
+                  )}
+                >
                   <td className="px-2 py-2">
                     <input
                       type="checkbox"
@@ -916,7 +1360,7 @@ export function ApplicantsTable({
                 </tr>
               );
             })}
-            {filtered.length === 0 && (
+            {filtered.length === 0 && !draft && (
               <tr>
                 <td colSpan={15} className="px-3 py-8 text-center text-sm text-slate-500">
                   조건에 맞는 신청 내역이 없습니다.
