@@ -36,6 +36,11 @@ function BoolBadge({ value, trueLabel, falseLabel }: { value: boolean; trueLabel
   );
 }
 
+type StatusFilterValue = "전체" | ApplicationStatus;
+
+/** 상태 필터 선택지. 상단 필터바와 표 제목줄 필터가 같은 값을 공유한다. */
+const STATUS_FILTER_OPTIONS: readonly StatusFilterValue[] = ["전체", ...APPLICATION_STATUSES];
+
 interface ColumnFilters {
   topic: string;
   name: string;
@@ -43,6 +48,7 @@ interface ColumnFilters {
   idNumber: string;
   phone: string;
   email: string;
+  status: StatusFilterValue;
   certIssued: "전체" | "발급완료" | "미발급";
 }
 
@@ -53,6 +59,7 @@ const INITIAL_COLUMN_FILTERS: ColumnFilters = {
   idNumber: "",
   phone: "",
   email: "",
+  status: "전체",
   certIssued: "전체",
 };
 
@@ -218,7 +225,6 @@ export function ApplicantsTable({
   const router = useRouter();
   const [applications, setApplications] = useState<ApplicationWithWorkshop[]>(initialApplications);
   const [roundFilter, setRoundFilter] = useState<string>("전체");
-  const [statusFilter, setStatusFilter] = useState<string>("전체");
   const [search, setSearch] = useState("");
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>(INITIAL_COLUMN_FILTERS);
   const [noticeFilters, setNoticeFilters] = useState<NoticeFilters>(buildInitialNoticeFilters);
@@ -263,7 +269,7 @@ export function ApplicantsTable({
 
     return applications.filter((a) => {
       if (roundFilter !== "전체" && String(a.workshop.round) !== roundFilter) return false;
-      if (statusFilter !== "전체" && a.status !== statusFilter) return false;
+      if (columnFilters.status !== "전체" && a.status !== columnFilters.status) return false;
       if (keyword) {
         const haystack = `${a.name} ${a.email} ${a.phone}`.toLowerCase();
         if (!haystack.includes(keyword)) return false;
@@ -284,7 +290,7 @@ export function ApplicantsTable({
       }
       return true;
     });
-  }, [applications, roundFilter, statusFilter, search, columnFilters, noticeFilters]);
+  }, [applications, roundFilter, search, columnFilters, noticeFilters]);
 
   function updateColumnFilter<K extends keyof ColumnFilters>(key: K, value: ColumnFilters[K]) {
     setColumnFilters((prev) => ({ ...prev, [key]: value }));
@@ -717,10 +723,7 @@ export function ApplicantsTable({
       setDraft({ ...INITIAL_DRAFT, workshopId: draft.workshopId, status: draft.status });
       // 필터가 걸려 있으면 방금 추가한 행이 목록에서 걸러질 수 있으므로 함께 알린다.
       const filterHint =
-        roundFilter !== "전체" ||
-        statusFilter !== "전체" ||
-        search.trim() !== "" ||
-        hasActiveColumnFilters
+        roundFilter !== "전체" || search.trim() !== "" || hasActiveColumnFilters
           ? " (필터 조건에 따라 목록에 보이지 않을 수 있습니다.)"
           : "";
       setDraftMessage({
@@ -809,12 +812,11 @@ export function ApplicantsTable({
           </label>
           <select
             id="status-filter"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            value={columnFilters.status}
+            onChange={(e) => updateColumnFilter("status", e.target.value as StatusFilterValue)}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent"
           >
-            <option value="전체">전체</option>
-            {STATUS_OPTIONS.map((s) => (
+            {STATUS_FILTER_OPTIONS.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>
@@ -1049,7 +1051,15 @@ export function ApplicantsTable({
                 </div>
               </th>
               <th scope="col" rowSpan={2} className="w-24 px-2 py-2 align-bottom">
-                상태
+                <div className="flex flex-col gap-1">
+                  <span>상태</span>
+                  <HeaderSelectFilter
+                    label="상태"
+                    value={columnFilters.status}
+                    onChange={(v) => updateColumnFilter("status", v)}
+                    options={STATUS_FILTER_OPTIONS}
+                  />
+                </div>
               </th>
               <th scope="col" rowSpan={2} className="w-20 px-2 py-2 align-bottom">
                 이수처리
