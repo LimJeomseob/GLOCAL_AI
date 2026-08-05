@@ -10,6 +10,7 @@ import { formatDateTime, formatDateRange } from "@/lib/format";
 import { exportRowsAsCsv } from "@/lib/csv";
 import { issueCertificatesForApplications } from "@/lib/issueCertificate";
 import { adminApplicationSchema, normalizePhone } from "@/lib/validation";
+import { toAdminMessage } from "@/lib/dbErrors";
 import { deriveWorkshopStatus, fetchWorkshopsWithAvailability } from "@/lib/workshops";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -692,7 +693,9 @@ export function ApplicantsTable({
       if (error || !data) {
         setDraftMessage({
           type: "error",
-          text: `등록에 실패했습니다: ${error?.message ?? "응답을 확인할 수 없습니다."}`,
+          text: `등록에 실패했습니다: ${
+            error ? toAdminMessage(error) : "응답을 확인할 수 없습니다."
+          }`,
         });
         return;
       }

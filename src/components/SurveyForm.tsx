@@ -7,6 +7,7 @@ import { FormField, inputBaseClass } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TABLES } from "@/lib/db-tables";
+import { toUserMessage } from "@/lib/dbErrors";
 import {
   AWARENESS_PATH_OPTIONS,
   SURVEY_LIKERT_QUESTIONS,
@@ -179,7 +180,7 @@ export function SurveyForm({ workshopSeeds, initialRound }: SurveyFormProps) {
       });
 
       if (error) {
-        setSubmitError(error.message || "제출 중 오류가 발생했습니다.");
+        setSubmitError(toUserMessage(error, "제출 중 오류가 발생했습니다."));
         return;
       }
 

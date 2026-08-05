@@ -23,6 +23,23 @@
 - 관리자 인증: Supabase Auth 구글 OAuth + `admin_users` allowlist. 서버 미들웨어가 없으므로
   접근 통제는 클라이언트 라우트 가드(`useAdminSession`) + Supabase RLS(`is_admin()`)의 이중 구조입니다.
 
+### 공개 INSERT 경로의 보안 전제
+
+anon key가 정적 사이트에 공개되어 있으므로 **신청 폼을 거치지 않은 PostgREST 직접 호출은
+언제나 가능하다**고 전제해야 합니다. `applications`/`LAWdata`의 INSERT 정책은 공개 신청·설문
+제출을 허용하기 위해 `with check (true)`라서 컬럼 값을 제한하지 못하므로, 값 강제는 전부
+`check_application_capacity()` 트리거(`0012_public_insert_hardening.sql`)가 담당합니다.
+
+- 비관리자 INSERT는 `status='신청완료'`, `cert_issued=false`, `created_by_admin=false`로 **강제**됩니다.
+  (강제 전에는 `status='이수'`로 직접 INSERT한 뒤 공개 수료증 발급 함수를 호출해 수강 없이
+  정식 발급번호를 받을 수 있었고, `status='대기'`로 넣으면 정원·마감 검사도 우회됐습니다)
+- 같은 회차에 동일 연락처(하이픈 무시)로 활성 신청이 있으면 `P0005`로 거부합니다 — 정원 선점 방어.
+  취소 건은 제외되므로 취소 후 재신청은 가능합니다.
+- 관리자(`is_admin()`) 경로는 현장 등록·소급 등록·대리 신청을 위해 오픈·마감·정원·중복 검사에서
+  제외됩니다.
+- 트리거가 raise하는 코드(`P0001`~`P0005`)는 `src/lib/dbErrors.ts`에서 사용자 문구로 매핑합니다.
+  매핑되지 않은 오류는 원문 대신 일반 문구로 대체해 내부 정보 노출을 막습니다.
+
 ## 최초 배포 절차
 
 ### 1. Supabase 프로젝트 준비
@@ -77,10 +94,34 @@ npm run dev
 npm run build && npm run preview   # http://localhost:3000 (out/ 디렉터리를 정적 서빙)
 ```
 
+## 검증 (CI)
+
+`main`으로 들어가는 PR은 `.github/workflows/ci.yml`이 자동 검증합니다.
+
+```bash
+npm run lint && npm run typecheck && npm run build   # 프론트엔드
+```
+
+DB 마이그레이션·RLS·트리거 회귀 테스트는 순수 Postgres에서 실행합니다.
+(Supabase가 기본 제공하는 역할·`auth.jwt()`·`storage` 객체는 `supabase/tests/_shim.sql`이 대신 만듭니다 —
+실제 Supabase 프로젝트에는 적용하지 마세요.)
+
+```bash
+createdb glocal_test
+psql -d glocal_test -v ON_ERROR_STOP=1 -f supabase/tests/_shim.sql
+for f in supabase/migrations/*.sql; do psql -d glocal_test -v ON_ERROR_STOP=1 -f "$f"; done
+psql -d glocal_test -v ON_ERROR_STOP=1 -f supabase/tests/0012_public_insert_hardening.test.sql
+```
+
+테스트는 하나의 트랜잭션에서 실행 후 `ROLLBACK`하므로 DB에 아무것도 남기지 않습니다.
+
 ## 폴더 구조 메모
 
 - `src/app/(portal)` — 신청 포털 공개 4탭(소개/신청/신청내역조회/만족도조사)
 - `src/app/admin` — 관리자 포털(구글 OAuth 로그인 + 신청자 관리 + 만족도 설문결과)
 - `supabase/migrations` — DB 스키마, RLS 정책, 트리거/함수, 시드 데이터
 - `supabase/functions` — Edge Function(Deno) 소스
+- `supabase/tests` — DB 회귀 테스트(psql로 실행) + 순수 Postgres용 shim
+- `docs/SYSTEM_IMPROVEMENT_REVIEW.md` — 시스템 개선·보완 검토 보고서(남은 과제 목록)
+- `.github/workflows/ci.yml` — PR 검증(lint·typecheck·build + DB 테스트)
 - `.github/workflows/deploy-pages.yml` — GitHub Pages 자동 배포

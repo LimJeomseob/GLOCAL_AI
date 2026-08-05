@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { applicationSchema } from "@/lib/validation";
+import { toUserMessage } from "@/lib/dbErrors";
 import { TABLES } from "@/lib/db-tables";
 import { FormField, inputBaseClass } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
@@ -124,7 +125,7 @@ export function ApplicationForm({
     setSubmitting(false);
 
     if (error) {
-      setSubmitError(error.message);
+      setSubmitError(toUserMessage(error));
       return;
     }
 

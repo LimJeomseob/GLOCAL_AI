@@ -1,0 +1,91 @@
+name: CI
+
+# main으로 들어가는 변경을 병합 전에 검증한다.
+# deploy-pages.yml은 main push 즉시 운영 사이트에 배포하므로, 깨진 코드가 main에 들어가면
+# 그대로 반영된다 — 그 앞단의 안전망 역할이다.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      # 빌드 검증용 더미 값. 정적 export 빌드는 이 값들을 번들에 인라인할 뿐 실제로 호출하지
+      # 않으므로 시크릿이 필요 없다(포크 PR에서는 시크릿에 접근할 수도 없다).
+      # 운영 배포에 쓰이는 실제 값은 deploy-pages.yml이 주입한다.
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      NEXT_PUBLIC_BASE_PATH: ""
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build static export
+        run: npm run build
+
+  # 마이그레이션이 순서대로 적용되는지, 그리고 공개 INSERT 경로의 보안 강제(0012)가
+  # 유지되는지 실제 Postgres에서 검증한다.
+  db:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Apply Supabase shim and migrations
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -q -f supabase/tests/_shim.sql
+          for f in supabase/migrations/*.sql; do
+            echo "== applying $f"
+            psql -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+
+      - name: Run database tests
+        run: |
+          set -euo pipefail
+          for f in supabase/tests/*.test.sql; do
+            echo "== running $f"
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
