@@ -741,9 +741,23 @@ export function ApplicantsTable({
     }
   }
 
+  /**
+   * 체크박스로 선택한 신청 건만 내보낸다. 다른 일괄 처리(발급·상태변경·삭제)와 동일하게
+   * 선택 자체를 기준으로 삼으므로, 선택 후 필터를 바꿔 화면에서 사라진 건도 함께 내보내진다.
+   * 목록 정렬(created_at 내림차순)은 applications 순서를 그대로 따른다.
+   */
   function handleExportCsv() {
+    const selectedApplications = applications.filter((a) => selectedIds.has(a.id));
+    if (selectedApplications.length === 0) {
+      setBulkMessage({
+        type: "error",
+        text: "엑셀로 내보낼 신청 건을 먼저 선택해 주세요.",
+      });
+      return;
+    }
+
     exportRowsAsCsv(
-      filtered,
+      selectedApplications,
       [
         { header: "프로그램명", accessor: (a: ApplicationWithWorkshop) => a.workshop.topic },
         { header: "신청일", accessor: (a: ApplicationWithWorkshop) => formatDateTime(a.created_at) },
@@ -855,8 +869,14 @@ export function ApplicantsTable({
               표 필터 초기화
             </Button>
           )}
-          <Button type="button" variant="outline" size="sm" onClick={handleExportCsv}>
-            엑셀 내보내기
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleExportCsv}
+            disabled={selectedIds.size === 0}
+          >
+            선택 항목 엑셀 내보내기
           </Button>
           <Button
             type="button"
