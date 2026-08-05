@@ -46,8 +46,34 @@ jobs:
       - name: Build static export
         run: npm run build
 
-  # 마이그레이션이 순서대로 적용되는지, 그리고 공개 INSERT 경로의 보안 강제(0012)가
-  # 유지되는지 실제 Postgres에서 검증한다.
+  # Edge Function은 Next 빌드에 포함되지 않아 tsc가 보지 않는다. Deno로 따로 검증한다.
+  # (본인확인 헬퍼를 공유 모듈로 옮길 때 null 내로잉이 사라진 회귀를 이 검사가 잡았다)
+  functions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Typecheck edge functions
+        working-directory: supabase/functions
+        run: |
+          set -euo pipefail
+          for f in */index.ts; do
+            echo "== checking $f"
+            deno check "$f"
+          done
+
+      - name: Lint edge functions
+        working-directory: supabase/functions
+        run: deno lint
+
+  # 마이그레이션이 순서대로 적용되는지, 그리고 공개 INSERT 경로의 보안 강제(0012)와
+  # 빈도 제한(0013)이 유지되는지 실제 Postgres에서 검증한다.
   db:
     runs-on: ubuntu-latest
     services:

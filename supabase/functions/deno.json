@@ -1,0 +1,9 @@
+{
+  "//": "Edge Function(Deno) 전용 설정. 저장소 루트의 package.json은 Next 앱용이므로, Deno가 상위로 올라가 node_modules를 요구하지 않도록 이 디렉터리를 독립 스코프로 만든다. Deno Deploy(Supabase Edge Runtime)도 node_modules 없이 전역 캐시로 npm: 지정자를 해석하므로 배포 동작과 동일한 조건이다.",
+  "nodeModulesDir": "none",
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  }
+}

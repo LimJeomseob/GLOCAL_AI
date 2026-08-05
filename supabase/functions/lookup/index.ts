@@ -2,19 +2,11 @@
 // applications 테이블은 RLS로 공개 SELECT가 차단되어 있으므로, 이 함수에서만
 // Service Role로 "성명+연락처가 정확히 일치하는 건"만 서버(Deno)에서 필터링하여 반환한다.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { z } from "npm:zod@3.23.8";
 import { corsHeaders, handleCorsPreflight, jsonResponse } from "../_shared/cors.ts";
+import { identitySchema, normalizePhone } from "../_shared/identity.ts";
+import { checkRateLimit, RATE_LIMIT_MESSAGE } from "../_shared/rateLimit.ts";
 
-const PHONE_REGEX = /^01[0-9]-?\d{3,4}-?\d{4}$/;
-
-const lookupSchema = z.object({
-  name: z.string().trim().min(1),
-  phone: z.string().trim().regex(PHONE_REGEX),
-});
-
-function normalizePhone(phone: string): string {
-  return phone.replace(/[^0-9]/g, "");
-}
+const lookupSchema = identitySchema;
 
 interface LookupResultItem {
   applicationId: string;
@@ -30,6 +22,25 @@ interface LookupResultItem {
 }
 
 const CERTIFICATES_BUCKET = "certificates";
+
+/** 회차 임베드. PostgREST가 to-one 임베드를 배열로 돌려주는 경우가 있어 두 형태를 모두 받는다. */
+interface WorkshopEmbed {
+  round: number;
+  round_label: string | null;
+  topic: string;
+  start_at: string;
+  end_at: string;
+  location: string;
+}
+
+/** applications 조회 결과 행 */
+interface ApplicationRow {
+  id: string;
+  name: string;
+  phone: string;
+  status: string;
+  workshop: WorkshopEmbed | WorkshopEmbed[] | null;
+}
 
 Deno.serve(async (req: Request) => {
   const preflight = handleCorsPreflight(req);
@@ -50,6 +61,12 @@ Deno.serve(async (req: Request) => {
     { auth: { persistSession: false } }
   );
 
+  // 성명+연락처만으로 본인을 확인하므로, 연락처 무차별 대입을 빈도 제한으로 막는다.
+  const { allowed } = await checkRateLimit(supabase, req, "lookup", name);
+  if (!allowed) {
+    return jsonResponse({ error: RATE_LIMIT_MESSAGE }, 429, { "Retry-After": "600" });
+  }
+
   const { data: applications, error } = await supabase
     .from("applications")
     .select(
@@ -61,8 +78,8 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "조회 중 오류가 발생했습니다." }, 500);
   }
 
-  const matched = (applications ?? []).filter(
-    (row: { phone: string }) => normalizePhone(row.phone) === normalizedPhone
+  const matched = ((applications ?? []) as unknown as ApplicationRow[]).filter(
+    (row) => normalizePhone(row.phone) === normalizedPhone
   );
 
   if (matched.length === 0) {
@@ -80,7 +97,7 @@ Deno.serve(async (req: Request) => {
   );
 
   const results: LookupResultItem[] = await Promise.all(
-    matched.map(async (row: any) => {
+    matched.map(async (row: ApplicationRow) => {
       const workshop = Array.isArray(row.workshop) ? row.workshop[0] : row.workshop;
       const cert = certByApplicationId.get(row.id) as
         | { cert_no: string; pdf_path: string | null }

@@ -40,6 +40,27 @@ anon key가 정적 사이트에 공개되어 있으므로 **신청 폼을 거치
 - 트리거가 raise하는 코드(`P0001`~`P0005`)는 `src/lib/dbErrors.ts`에서 사용자 문구로 매핑합니다.
   매핑되지 않은 오류는 원문 대신 일반 문구로 대체해 내부 정보 노출을 막습니다.
 
+### 공개 Edge Function의 빈도 제한
+
+`lookup` / `cancel-application` / `issue-certificate`는 **성명+연락처 일치만으로** 본인을
+확인합니다. 성명은 알아내기 쉬우므로 연락처를 대입해 타인의 신청을 조회하거나
+**취소**(되돌릴 수 없음)하는 시도를 막기 위해 `0013_rate_limit.sql`의 빈도 제한을 겁니다.
+
+- **대상(성명) 기준 10분당 15회** — 공격자는 실존 성명을 겨냥해야 하므로 위조가 불가능한 축입니다.
+- **출처(IP) 기준 10분당 60회** — 캠퍼스 NAT 뒤 다수 이용자를 고려해 넉넉히 잡았습니다.
+  `x-forwarded-for`는 위조 여지가 있어 보조 수단으로만 씁니다.
+- 한도가 넉넉해도 방어가 성립합니다. 휴대폰 번호 공간이 `010-XXXX-XXXX` = 10^8 이라
+  10분당 수십 회로는 탐색이 불가능합니다. 반대로 너무 조이면 정상 이용자가 막히고
+  특정인을 겨냥한 서비스 거부에 악용될 수 있어 균형을 둡니다.
+- 한도 초과 시 `429`와 `Retry-After: 600`을 돌려주며, 초과한 시도는 **기록하지 않아**
+  계속 두드려도 차단이 연장되지 않습니다(윈도우가 지나면 정확히 복구).
+- 빈도 제한 저장소 오류 시에는 **열어 둡니다**(fail-open). 여기서 막으면 저장소 장애가
+  곧 전면 서비스 중단이 되기 때문이며, 대신 오류를 로그로 남깁니다.
+- `rate_limit_events`의 `bucket`은 SHA-256 해시라 성명·연락처·IP 원문이 저장되지 않습니다.
+
+> 봇 방어(Turnstile)와 추가 본인확인 요소는 아직 적용하지 않았습니다 —
+> `docs/SYSTEM_IMPROVEMENT_REVIEW.md` 참조.
+
 ## 최초 배포 절차
 
 ### 1. Supabase 프로젝트 준비
@@ -100,7 +121,13 @@ npm run build && npm run preview   # http://localhost:3000 (out/ 디렉터리를
 
 ```bash
 npm run lint && npm run typecheck && npm run build   # 프론트엔드
+
+cd supabase/functions && deno check */index.ts && deno lint   # Edge Function(Deno)
 ```
+
+Edge Function은 Next 빌드에 포함되지 않아 `tsc`가 보지 못하므로 Deno로 따로 검증합니다.
+`supabase/functions/deno.json`이 이 디렉터리를 독립 스코프로 만들어, 저장소 루트의
+`package.json`(Next 앱용) 때문에 Deno가 `node_modules`를 요구하지 않도록 합니다.
 
 DB 마이그레이션·RLS·트리거 회귀 테스트는 순수 Postgres에서 실행합니다.
 (Supabase가 기본 제공하는 역할·`auth.jwt()`·`storage` 객체는 `supabase/tests/_shim.sql`이 대신 만듭니다 —
@@ -110,7 +137,7 @@ DB 마이그레이션·RLS·트리거 회귀 테스트는 순수 Postgres에서 
 createdb glocal_test
 psql -d glocal_test -v ON_ERROR_STOP=1 -f supabase/tests/_shim.sql
 for f in supabase/migrations/*.sql; do psql -d glocal_test -v ON_ERROR_STOP=1 -f "$f"; done
-psql -d glocal_test -v ON_ERROR_STOP=1 -f supabase/tests/0012_public_insert_hardening.test.sql
+for f in supabase/tests/*.test.sql; do psql -d glocal_test -v ON_ERROR_STOP=1 -f "$f"; done
 ```
 
 테스트는 하나의 트랜잭션에서 실행 후 `ROLLBACK`하므로 DB에 아무것도 남기지 않습니다.

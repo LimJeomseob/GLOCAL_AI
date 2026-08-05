@@ -28,3 +28,7 @@ next-env.d.ts
 # supabase
 supabase/.branches
 supabase/.temp
+
+# deno — `deno check`/`deno lint`를 로컬에서 돌리면 생긴다. Supabase Edge Runtime이
+# 자체적으로 의존성을 해석하므로 잠금 파일을 커밋해 배포와 어긋나게 하지 않는다.
+deno.lock

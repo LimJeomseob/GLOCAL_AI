@@ -4,22 +4,28 @@
 // 본인 신청 건"을 검증한 뒤 발급(RPC)·서식 전달·업로드 URL 서명을 수행한다.
 // PDF 생성 자체는 브라우저에서 한다(fontkit이 Deno에서 실패 — certificatePdf.ts 참조).
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { z } from "npm:zod@3.23.8";
 import { corsHeaders, handleCorsPreflight, jsonResponse } from "../_shared/cors.ts";
+import {
+  identityWithApplicationSchema,
+  matchesIdentity,
+  IDENTITY_MISMATCH_MESSAGE,
+} from "../_shared/identity.ts";
+import { checkRateLimit, RATE_LIMIT_MESSAGE } from "../_shared/rateLimit.ts";
 
-const PHONE_REGEX = /^01[0-9]-?\d{3,4}-?\d{4}$/;
-
-const issueSchema = z.object({
-  name: z.string().trim().min(1),
-  phone: z.string().trim().regex(PHONE_REGEX),
-  applicationId: z.string().uuid(),
-});
-
-function normalizePhone(phone: string): string {
-  return phone.replace(/[^0-9]/g, "");
-}
+const issueSchema = identityWithApplicationSchema;
 
 const CERTIFICATES_BUCKET = "certificates";
+
+/** public.certificates 행 (issue_certificate() RPC의 반환 형태) */
+interface CertificateRow {
+  id: string;
+  application_id: string;
+  cert_no: string;
+  issuer: string;
+  issued_at: string;
+  reissue_count: number;
+  pdf_path: string | null;
+}
 
 /** 스토리지 키는 ASCII만 허용되므로 발급번호에서 숫자·하이픈만 남긴다 (제2026-001호 → 2026-001) */
 function buildPdfPath(round: number, certNo: string): string {
@@ -37,13 +43,18 @@ Deno.serve(async (req: Request) => {
   }
 
   const { name, phone, applicationId } = parsed.data;
-  const normalizedPhone = normalizePhone(phone);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     { auth: { persistSession: false } }
   );
+
+  // 발급번호 채번을 동반하므로 반복 호출을 빈도 제한으로 막는다.
+  const { allowed } = await checkRateLimit(supabase, req, "issue-cert", name);
+  if (!allowed) {
+    return jsonResponse({ error: RATE_LIMIT_MESSAGE }, 429, { "Retry-After": "600" });
+  }
 
   const { data: application, error: appError } = await supabase
     .from("applications")
@@ -58,15 +69,8 @@ Deno.serve(async (req: Request) => {
   }
 
   // 존재 여부를 드러내지 않도록 미존재/본인 불일치를 같은 메시지로 처리한다.
-  const identityMismatch =
-    !application ||
-    application.name !== name ||
-    normalizePhone(application.phone) !== normalizedPhone;
-  if (identityMismatch) {
-    return jsonResponse(
-      { error: "일치하는 신청 내역이 없습니다. 성명과 연락처를 확인해 주세요." },
-      404
-    );
+  if (!matchesIdentity(application, name, phone)) {
+    return jsonResponse({ error: IDENTITY_MISMATCH_MESSAGE }, 404);
   }
 
   if (application.status !== "이수") {
@@ -80,9 +84,12 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "회차 정보를 확인할 수 없습니다." }, 500);
   }
 
-  const { data: cert, error: rpcError } = await supabase
+  // DB 타입을 생성해 쓰지 않으므로 rpc()의 반환 타입이 {} 로 추론된다.
+  // issue_certificate()는 public.certificates 행을 그대로 돌려주므로 그 형태로 좁힌다.
+  const { data: certData, error: rpcError } = await supabase
     .rpc("issue_certificate", { p_application_id: applicationId, p_channel: "public" })
     .single();
+  const cert = certData as CertificateRow | null;
 
   if (rpcError || !cert) {
     console.error(`[issue-certificate] RPC 실패 (application_id=${applicationId}):`, rpcError);

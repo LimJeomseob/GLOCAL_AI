@@ -5,20 +5,15 @@
 // '취소' 상태는 정원 집계(get_workshop_availability, 정원 트리거)에서 제외되므로
 // 취소 즉시 해당 회차의 자리가 반환된다.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { z } from "npm:zod@3.23.8";
 import { handleCorsPreflight, jsonResponse } from "../_shared/cors.ts";
+import {
+  identityWithApplicationSchema,
+  matchesIdentity,
+  IDENTITY_MISMATCH_MESSAGE,
+} from "../_shared/identity.ts";
+import { checkRateLimit, RATE_LIMIT_MESSAGE } from "../_shared/rateLimit.ts";
 
-const PHONE_REGEX = /^01[0-9]-?\d{3,4}-?\d{4}$/;
-
-const cancelSchema = z.object({
-  name: z.string().trim().min(1),
-  phone: z.string().trim().regex(PHONE_REGEX),
-  applicationId: z.string().uuid(),
-});
-
-function normalizePhone(phone: string): string {
-  return phone.replace(/[^0-9]/g, "");
-}
+const cancelSchema = identityWithApplicationSchema;
 
 /** 본인 취소가 허용되는 상태 — '이수'/'취소'는 불가 */
 const CANCELLABLE_STATUSES = ["신청완료", "대기"];
@@ -34,13 +29,18 @@ Deno.serve(async (req: Request) => {
   }
 
   const { name, phone, applicationId } = parsed.data;
-  const normalizedPhone = normalizePhone(phone);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     { auth: { persistSession: false } }
   );
+
+  // 취소는 되돌릴 수 없으므로 무차별 대입 방어가 특히 중요하다.
+  const { allowed } = await checkRateLimit(supabase, req, "cancel", name);
+  if (!allowed) {
+    return jsonResponse({ error: RATE_LIMIT_MESSAGE }, 429, { "Retry-After": "600" });
+  }
 
   const { data: application, error: appError } = await supabase
     .from("applications")
@@ -53,15 +53,8 @@ Deno.serve(async (req: Request) => {
   }
 
   // 존재 여부를 드러내지 않도록 미존재/본인 불일치를 같은 메시지로 처리한다.
-  const identityMismatch =
-    !application ||
-    application.name !== name ||
-    normalizePhone(application.phone) !== normalizedPhone;
-  if (identityMismatch) {
-    return jsonResponse(
-      { error: "일치하는 신청 내역이 없습니다. 성명과 연락처를 확인해 주세요." },
-      404
-    );
+  if (!matchesIdentity(application, name, phone)) {
+    return jsonResponse({ error: IDENTITY_MISMATCH_MESSAGE }, 404);
   }
 
   if (application.status === "취소") {

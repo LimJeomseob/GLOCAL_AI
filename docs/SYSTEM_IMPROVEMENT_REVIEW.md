@@ -16,7 +16,10 @@ CSV 수식 인젝션 방어, 취소 시 상태 재검증 등 완성도가 높은
 | P0-2 중복 신청(정원 선점) 차단 | **완료** | 동 마이그레이션 (트리거 내 P0005) |
 | P1-9 DB 오류 메시지 매핑 | **완료** | `src/lib/dbErrors.ts` |
 | P1-6 PR 단계 CI | **완료** | `.github/workflows/ci.yml` |
-| P1-7 테스트(DB 회귀분) | **부분 완료** | `supabase/tests/0012_public_insert_hardening.test.sql` (단언 12건) |
+| P0-3 rate limit (무차별 대입 방어) | **완료** | `supabase/migrations/0013_rate_limit.sql`, `supabase/functions/_shared/rateLimit.ts` |
+| P0-3 봇 방어(Turnstile)·추가 본인확인 | 미착수 | 아래 본문 참조 |
+| P1-7 테스트(DB 회귀분) | **부분 완료** | `supabase/tests/*.test.sql` (단언 24건) |
+| P2-13 Edge Function 코드 중복 | **완료** | `supabase/functions/_shared/identity.ts` |
 | 그 외 | 미착수 | 아래 본문 참조 |
 
 입력 길이 제한(`applications_text_length_chk`, `lawdata_text_length_chk`)도 함께 추가했습니다.
@@ -83,7 +86,7 @@ create unique index applications_active_phone_uniq
 > 함수 선두의 `pg_advisory_xact_lock`이 해당 회차의 모든 INSERT를 직렬화하므로 unique
 > 인덱스와 동일하게 경쟁 조건이 없습니다. 취소 건은 제외해 취소 후 재신청은 허용합니다.
 
-### 3. 공개 엔드포인트 rate limit·봇 방어 부재
+### 3. 공개 엔드포인트 rate limit·봇 방어 부재 — **1단계(rate limit) 조치 완료**
 
 `lookup` / `cancel-application` / `issue-certificate` Edge Function과 공개 INSERT(신청·설문)에
 호출 횟수 제한이 없습니다.
@@ -99,6 +102,24 @@ create unique index applications_active_phone_uniq
 2. 신청·설문 INSERT를 Edge Function 경유로 전환하고 Cloudflare Turnstile(무료) 검증 추가
 3. 취소·수료증 발급은 성명+연락처 외 추가 본인확인 요소 1개 도입
    (신청 시 입력한 `id_number` 뒷자리 또는 이메일 인증 코드)
+
+> **1단계 조치됨** — Postgres 기반 슬라이딩 윈도우 빈도 제한을 3개 함수 전체에 적용했습니다.
+> Upstash 등 외부 서비스 없이 기존 스택만으로 구현했습니다.
+>
+> - **대상(성명) 10분당 15회 + 출처(IP) 10분당 60회**의 2단 구조.
+>   대상 축은 공격자가 실존 성명을 겨냥해야 하므로 위조 불가능하고, IP 축은
+>   `x-forwarded-for` 위조 여지가 있어 보조로만 씁니다.
+> - 한도를 넉넉히 잡아도 무방합니다 — 번호 공간이 10^8이라 10분당 수십 회로는 탐색이
+>   불가능합니다. 오히려 과도하게 조이면 **특정인을 겨냥해 대상 축을 고갈시키는 서비스 거부**에
+>   악용될 수 있어, 차단 창을 10분으로 짧게 두었습니다.
+> - 초과한 시도는 기록하지 않아 계속 두드려도 차단이 연장되지 않습니다.
+> - 저장소 오류 시 fail-open — 여기서 막으면 장애가 곧 전면 중단이 되기 때문입니다.
+> - `bucket`을 SHA-256으로 해시해 빈도 제한 표에 성명·연락처·IP 원문이 남지 않게 했습니다.
+>
+> **남은 2·3단계:** Turnstile 봇 방어(신청·설문 INSERT의 Edge Function 경유 전환 포함)와
+> 추가 본인확인 요소. 특히 **신청·설문 INSERT는 여전히 빈도 제한이 없습니다** —
+> 이들은 Edge Function이 아니라 브라우저에서 PostgREST로 직접 INSERT하므로 이번 조치가
+> 닿지 않습니다. 다만 중복 신청 차단(P0-2)과 정원·마감 검사가 남용 범위를 크게 좁힙니다.
 
 ---
 
@@ -188,10 +209,20 @@ RLS는 `workshops_update_admin` 정책 추가로 충분합니다.
 재사용**될 수 있습니다. 종이 수료증과 번호가 충돌하면 진위 검증이 무너지므로, 회차별
 시퀀스 테이블(`cert_serials(round, last_serial)`)로 전환을 권장합니다.
 
-### 13. Edge Function 간 코드 중복
+### 13. Edge Function 간 코드 중복 — **조치 완료**
 
 `PHONE_REGEX`·`normalizePhone`·본인확인 로직이 3개 함수에 중복되어 있습니다.
 `_shared/identity.ts`로 추출하면 P0-3(추가 본인확인)도 한 곳에서 적용됩니다.
+
+> **조치됨** — `_shared/identity.ts`로 추출했습니다. 본인확인 실패 문구도 상수로 고정해
+> 세 함수의 응답이 어긋나지 않게 했습니다.
+>
+> 이 추출 과정에서 **인라인 검사가 제공하던 TypeScript null 내로잉이 사라지는 회귀**가
+> 발생했는데, 새로 도입한 `deno check`가 잡아냈습니다(`matchesIdentity`를 타입 가드로
+> 선언해 해결). Edge Function은 Next 빌드에 포함되지 않아 `tsc`가 보지 못하므로,
+> CI에 `functions` job(`deno check` + `deno lint`)을 추가했습니다.
+> 함께 발견된 기존 타입 공백(`issue_certificate` RPC 반환이 `{}`로 추론되던 문제)도
+> `CertificateRow` 인터페이스로 좁혔습니다.
 
 ### 14. 의존성 업그레이드 (긴급 아님)
 
@@ -220,16 +251,28 @@ Next 14.2 / React 18 / zod 3은 당장 문제없지만 유지보수 기한을 �
 | 1 | P0-1 status/cert_issued 위조 차단 (마이그레이션 1건) | 소 | 완료 |
 | 2 | P0-2 중복 신청 차단 + 오류 메시지 매핑(P1-9) | 소 | 완료 |
 | 3 | P1-6 PR CI 워크플로 | 소 | 완료 (브랜치 보호 규칙 설정만 남음) |
-| 4 | P0-3 rate limit → Turnstile → 추가 본인확인 (단계적) | 중 | 다음 우선순위 |
-| 5 | P1-7 단위·RLS 테스트 | 중 | DB 회귀분 완료, 단위·E2E 남음 |
-| 6 | P1-4 개인정보 파기 자동화, P1-5 CORS 제한 | 소 | 미착수 |
-| 7 | P2 리팩터링·회차 관리 UI·알림 자동화 | 중~대 | 미착수 |
+| 4 | P0-3 ① rate limit | 중 | 완료 |
+| 5 | P0-3 ② Turnstile 봇 방어 → ③ 추가 본인확인 | 중 | **다음 우선순위** |
+| 6 | P1-7 단위·E2E 테스트 | 중 | DB 회귀분 완료, 단위·E2E 남음 |
+| 7 | P1-4 개인정보 파기 자동화, P1-5 CORS 제한 | 소 | 미착수 |
+| 8 | P2 리팩터링·회차 관리 UI·알림 자동화 | 중~대 | 미착수 |
 
 ## 배포 시 유의사항
 
-`0012_public_insert_hardening.sql`은 **운영 DB에 적용해야 효력이 생깁니다.**
+`0012_public_insert_hardening.sql`·`0013_rate_limit.sql`은 **운영 DB에 적용해야 효력이 생깁니다.**
 Supabase CLI(`supabase db push`) 또는 대시보드 SQL Editor에서 실행하세요.
 프론트엔드만 배포하면 취약점은 그대로 남습니다.
+
+빈도 제한은 Edge Function 재배포도 필요합니다:
+
+```bash
+supabase functions deploy lookup
+supabase functions deploy cancel-application
+supabase functions deploy issue-certificate
+```
+
+마이그레이션 없이 함수만 배포하면 `rate_limit_hit` RPC가 없어 빈도 제한이 fail-open으로
+동작합니다(서비스는 정상, 방어만 미적용). 순서는 **마이그레이션 → 함수 배포**가 안전합니다.
 
 적용 후 확인할 것:
 - 기존 신청자가 같은 회차에 **중복 신청된 상태로 남아 있어도** 새 제약은 신규 INSERT에만
