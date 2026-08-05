@@ -60,9 +60,7 @@ insert into public.workshops (
   now() + interval '8 days', now() - interval '1 day', '초급', '테스트'
 );
 
--- anon/authenticated 역할이 RLS 아래에서 테이블에 접근할 수 있도록(Supabase 기본 grant와 동일)
-grant usage on schema public to anon, authenticated;
-grant select, insert, update, delete on all tables in schema public to anon, authenticated;
+-- anon/authenticated의 테이블 권한은 _shim.sql이 Supabase와 동일하게 미리 부여한다.
 
 -- ============================================================================
 -- 1. 공개 경로: status / cert_issued / created_by_admin 위조 차단

@@ -48,3 +48,19 @@ create table if not exists storage.objects (
   bucket_id text references storage.buckets(id),
   name text
 );
+
+-- Supabase는 public 스키마의 테이블 권한을 anon/authenticated에 넓게 부여하고 접근 통제는
+-- 전적으로 RLS에 맡긴다. 같은 조건을 만들어야 RLS 정책을 실제와 동일하게 검증할 수 있다.
+-- 이 shim은 마이그레이션보다 먼저 실행되므로, 앞으로 만들어질 테이블에 적용되도록
+-- 기본 권한(default privileges)으로 건다.
+grant usage on schema public to anon, authenticated, service_role;
+
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to anon, authenticated, service_role;
+
+alter default privileges in schema public
+  grant usage, select on sequences to anon, authenticated, service_role;
+
+-- 이미 만들어진 테이블이 있다면 함께 부여한다(shim을 마이그레이션 뒤에 돌리는 경우 대비).
+grant select, insert, update, delete on all tables in schema public
+  to anon, authenticated, service_role;

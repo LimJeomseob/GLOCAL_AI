@@ -25,7 +25,7 @@ Deno.serve(async (req: Request) => {
   const json = await req.json().catch(() => null);
   const parsed = cancelSchema.safeParse(json);
   if (!parsed.success) {
-    return jsonResponse({ error: "입력값을 확인해 주세요." }, 400);
+    return jsonResponse(req, { error: "입력값을 확인해 주세요." }, 400);
   }
 
   const { name, phone, applicationId } = parsed.data;
@@ -39,7 +39,7 @@ Deno.serve(async (req: Request) => {
   // 취소는 되돌릴 수 없으므로 무차별 대입 방어가 특히 중요하다.
   const { allowed } = await checkRateLimit(supabase, req, "cancel", name);
   if (!allowed) {
-    return jsonResponse({ error: RATE_LIMIT_MESSAGE }, 429, { "Retry-After": "600" });
+    return jsonResponse(req, { error: RATE_LIMIT_MESSAGE }, 429, { "Retry-After": "600" });
   }
 
   const { data: application, error: appError } = await supabase
@@ -49,31 +49,31 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
 
   if (appError) {
-    return jsonResponse({ error: "조회 중 오류가 발생했습니다." }, 500);
+    return jsonResponse(req, { error: "조회 중 오류가 발생했습니다." }, 500);
   }
 
   // 존재 여부를 드러내지 않도록 미존재/본인 불일치를 같은 메시지로 처리한다.
   if (!matchesIdentity(application, name, phone)) {
-    return jsonResponse({ error: IDENTITY_MISMATCH_MESSAGE }, 404);
+    return jsonResponse(req, { error: IDENTITY_MISMATCH_MESSAGE }, 404);
   }
 
   if (application.status === "취소") {
-    return jsonResponse({ error: "이미 취소된 신청입니다." }, 400);
+    return jsonResponse(req, { error: "이미 취소된 신청입니다." }, 400);
   }
   if (!CANCELLABLE_STATUSES.includes(application.status)) {
-    return jsonResponse({ error: "이수 완료된 신청은 취소할 수 없습니다." }, 400);
+    return jsonResponse(req, { error: "이수 완료된 신청은 취소할 수 없습니다." }, 400);
   }
 
   const workshop = Array.isArray(application.workshop)
     ? application.workshop[0]
     : application.workshop;
   if (!workshop) {
-    return jsonResponse({ error: "회차 정보를 확인할 수 없습니다." }, 500);
+    return jsonResponse(req, { error: "회차 정보를 확인할 수 없습니다." }, 500);
   }
 
   // 취소는 특강 시작 전까지만 허용한다(서버 시각 기준 — 클라이언트 게이팅은 표시용일 뿐).
   if (Date.now() >= new Date(workshop.start_at).getTime()) {
-    return jsonResponse({ error: "특강이 시작된 이후에는 취소할 수 없습니다." }, 400);
+    return jsonResponse(req, { error: "특강이 시작된 이후에는 취소할 수 없습니다." }, 400);
   }
 
   // 조회-갱신 사이에 상태가 바뀌어도(관리자 이수처리·중복 취소) 덮어쓰지 않도록
@@ -88,13 +88,14 @@ Deno.serve(async (req: Request) => {
 
   if (updateError) {
     return jsonResponse(
+      req,
       { error: "취소 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." },
       500
     );
   }
   if (!updated) {
-    return jsonResponse({ error: "취소할 수 없는 상태로 변경되었습니다. 다시 조회해 주세요." }, 400);
+    return jsonResponse(req, { error: "취소할 수 없는 상태로 변경되었습니다. 다시 조회해 주세요." }, 400);
   }
 
-  return jsonResponse({ ok: true, applicationId, status: "취소" });
+  return jsonResponse(req, { ok: true, applicationId, status: "취소" });
 });

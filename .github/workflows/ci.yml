@@ -72,6 +72,10 @@ jobs:
         working-directory: supabase/functions
         run: deno lint
 
+      - name: Test edge functions
+        working-directory: supabase/functions
+        run: deno test --allow-env
+
   # 마이그레이션이 순서대로 적용되는지, 그리고 공개 INSERT 경로의 보안 강제(0012)와
   # 빈도 제한(0013)이 유지되는지 실제 Postgres에서 검증한다.
   db:

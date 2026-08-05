@@ -4,7 +4,7 @@
 // 본인 신청 건"을 검증한 뒤 발급(RPC)·서식 전달·업로드 URL 서명을 수행한다.
 // PDF 생성 자체는 브라우저에서 한다(fontkit이 Deno에서 실패 — certificatePdf.ts 참조).
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders, handleCorsPreflight, jsonResponse } from "../_shared/cors.ts";
+import { corsHeadersFor, handleCorsPreflight, jsonResponse } from "../_shared/cors.ts";
 import {
   identityWithApplicationSchema,
   matchesIdentity,
@@ -39,7 +39,7 @@ Deno.serve(async (req: Request) => {
   const json = await req.json().catch(() => null);
   const parsed = issueSchema.safeParse(json);
   if (!parsed.success) {
-    return jsonResponse({ error: "입력값을 확인해 주세요." }, 400);
+    return jsonResponse(req, { error: "입력값을 확인해 주세요." }, 400);
   }
 
   const { name, phone, applicationId } = parsed.data;
@@ -53,7 +53,7 @@ Deno.serve(async (req: Request) => {
   // 발급번호 채번을 동반하므로 반복 호출을 빈도 제한으로 막는다.
   const { allowed } = await checkRateLimit(supabase, req, "issue-cert", name);
   if (!allowed) {
-    return jsonResponse({ error: RATE_LIMIT_MESSAGE }, 429, { "Retry-After": "600" });
+    return jsonResponse(req, { error: RATE_LIMIT_MESSAGE }, 429, { "Retry-After": "600" });
   }
 
   const { data: application, error: appError } = await supabase
@@ -65,23 +65,23 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
 
   if (appError) {
-    return jsonResponse({ error: "조회 중 오류가 발생했습니다." }, 500);
+    return jsonResponse(req, { error: "조회 중 오류가 발생했습니다." }, 500);
   }
 
   // 존재 여부를 드러내지 않도록 미존재/본인 불일치를 같은 메시지로 처리한다.
   if (!matchesIdentity(application, name, phone)) {
-    return jsonResponse({ error: IDENTITY_MISMATCH_MESSAGE }, 404);
+    return jsonResponse(req, { error: IDENTITY_MISMATCH_MESSAGE }, 404);
   }
 
   if (application.status !== "이수") {
-    return jsonResponse({ error: "이수 상태인 신청 건만 수료증을 발급할 수 있습니다." }, 400);
+    return jsonResponse(req, { error: "이수 상태인 신청 건만 수료증을 발급할 수 있습니다." }, 400);
   }
 
   const workshop = Array.isArray(application.workshop)
     ? application.workshop[0]
     : application.workshop;
   if (!workshop) {
-    return jsonResponse({ error: "회차 정보를 확인할 수 없습니다." }, 500);
+    return jsonResponse(req, { error: "회차 정보를 확인할 수 없습니다." }, 500);
   }
 
   // DB 타입을 생성해 쓰지 않으므로 rpc()의 반환 타입이 {} 로 추론된다.
@@ -93,7 +93,7 @@ Deno.serve(async (req: Request) => {
 
   if (rpcError || !cert) {
     console.error(`[issue-certificate] RPC 실패 (application_id=${applicationId}):`, rpcError);
-    return jsonResponse({ error: rpcError?.message ?? "수료증 발급에 실패했습니다." }, 500);
+    return jsonResponse(req, { error: rpcError?.message ?? "수료증 발급에 실패했습니다." }, 500);
   }
 
   const { data: templateRow, error: templateError } = await supabase
@@ -105,8 +105,9 @@ Deno.serve(async (req: Request) => {
   if (templateError || !templateRow) {
     console.error("[issue-certificate] 서식 조회 실패:", templateError);
     return jsonResponse(
+      req,
       { error: "수료증 서식을 불러올 수 없습니다. 관리자에게 문의해 주세요." },
-    500
+      500
     );
   }
 
@@ -119,7 +120,7 @@ Deno.serve(async (req: Request) => {
 
   if (signError || !signedUpload) {
     console.error(`[issue-certificate] 업로드 URL 서명 실패 (path=${pdfPath}):`, signError);
-    return jsonResponse({ error: "수료증 저장 준비에 실패했습니다. 다시 시도해 주세요." }, 500);
+    return jsonResponse(req, { error: "수료증 저장 준비에 실패했습니다. 다시 시도해 주세요." }, 500);
   }
 
   if (!cert.pdf_path) {
@@ -147,6 +148,6 @@ Deno.serve(async (req: Request) => {
       template: templateRow.template,
       upload: { path: signedUpload.path, token: signedUpload.token },
     }),
-    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    { headers: { ...corsHeadersFor(req), "Content-Type": "application/json" } }
   );
 });

@@ -61,6 +61,41 @@ anon key가 정적 사이트에 공개되어 있으므로 **신청 폼을 거치
 > 봇 방어(Turnstile)와 추가 본인확인 요소는 아직 적용하지 않았습니다 —
 > `docs/SYSTEM_IMPROVEMENT_REVIEW.md` 참조.
 
+### CORS origin 제한 (선택)
+
+Edge Function은 기본적으로 모든 origin을 허용합니다. 배포 주소만 허용하려면:
+
+```bash
+supabase secrets set ALLOWED_ORIGINS="https://<github-username>.github.io,http://localhost:3000"
+```
+
+미설정이면 지금까지와 동일하게 `*`로 동작하므로, 설정하지 않아도 배포가 깨지지 않습니다.
+
+다만 효과는 제한적입니다 — 이 함수들은 쿠키·세션을 쓰지 않아 CORS가 실질적인 보안 경계가
+아니며, `curl`이나 서버 간 호출은 CORS를 아예 거치지 않습니다. origin 제한이 막는 것은
+"제3자 웹페이지가 방문자의 브라우저·IP로 이 API를 호출하는 것" 정도이고, 실제 남용 방어는
+위의 빈도 제한과 본인확인이 담당합니다.
+
+### 개인정보 보유기간 경과 건 자동 파기
+
+신청 폼에 고지한 보유 기간("특강 종료 후 1년")에 맞춰
+`anonymize_expired_applications()`가 종료 1년이 지난 회차의 신청 건에서 개인 식별자
+(성명·소속·교번·연락처·이메일)를 제거합니다. 회차·상태·수료증 발급번호는 사업 실적 통계와
+발급 이력을 위해 남기므로, 삭제가 아니라 익명화입니다. 재실행해도 안전합니다.
+
+`0014` 마이그레이션은 pg_cron이 **이미 켜져 있으면** 매일 자동 실행을 등록합니다.
+Supabase에서 pg_cron은 Database → Extensions에서 켜야 하며, 꺼져 있으면 마이그레이션은
+안내만 남기고 넘어갑니다. 나중에 켠 뒤 다음을 직접 실행하세요:
+
+```sql
+select cron.schedule('anonymize-expired-applications', '0 18 * * *',
+                     'select public.anonymize_expired_applications()');
+```
+
+> ⚠ Storage에 저장된 수료증 PDF에는 성명이 남습니다. SQL로는 Storage 실체 파일을 지울 수
+> 없어 `pdf_path` 링크만 끊습니다. 실제 파일 삭제는 Storage API를 쓰는 별도 작업이 필요하며
+> 아직 구현되어 있지 않습니다(`docs/SYSTEM_IMPROVEMENT_REVIEW.md` 참조).
+
 ## 최초 배포 절차
 
 ### 1. Supabase 프로젝트 준비
@@ -122,7 +157,7 @@ npm run build && npm run preview   # http://localhost:3000 (out/ 디렉터리를
 ```bash
 npm run lint && npm run typecheck && npm run build   # 프론트엔드
 
-cd supabase/functions && deno check */index.ts && deno lint   # Edge Function(Deno)
+cd supabase/functions && deno check */index.ts && deno lint && deno test --allow-env
 ```
 
 Edge Function은 Next 빌드에 포함되지 않아 `tsc`가 보지 못하므로 Deno로 따로 검증합니다.

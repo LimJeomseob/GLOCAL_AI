@@ -18,7 +18,9 @@ CSV 수식 인젝션 방어, 취소 시 상태 재검증 등 완성도가 높은
 | P1-6 PR 단계 CI | **완료** | `.github/workflows/ci.yml` |
 | P0-3 rate limit (무차별 대입 방어) | **완료** | `supabase/migrations/0013_rate_limit.sql`, `supabase/functions/_shared/rateLimit.ts` |
 | P0-3 봇 방어(Turnstile)·추가 본인확인 | 미착수 | 아래 본문 참조 |
-| P1-7 테스트(DB 회귀분) | **부분 완료** | `supabase/tests/*.test.sql` (단언 24건) |
+| P1-4 개인정보 파기 자동화 | **완료** | `supabase/migrations/0014_anonymize_expired_applications.sql` |
+| P1-5 CORS origin 제한 | **완료** | `supabase/functions/_shared/cors.ts` (`ALLOWED_ORIGINS`) |
+| P1-7 테스트(DB·Edge Function) | **부분 완료** | `supabase/tests/*.test.sql` (35건) + `_shared/cors.test.ts` (9건) |
 | P2-13 Edge Function 코드 중복 | **완료** | `supabase/functions/_shared/identity.ts` |
 | 그 외 | 미착수 | 아래 본문 참조 |
 
@@ -125,7 +127,7 @@ create unique index applications_active_phone_uniq
 
 ## P1 — 개인정보 보호·운영 안정성
 
-### 4. 개인정보 보유기간 자동화 부재
+### 4. 개인정보 보유기간 자동화 부재 — **조치 완료**
 
 신청 폼 고지는 "특강 종료 후 1년 또는 관계 법령에 따름"인데, 실제 파기 메커니즘이 없습니다.
 
@@ -133,11 +135,35 @@ create unique index applications_active_phone_uniq
 익명화(성명·연락처·이메일·id_number 마스킹)하는 주기 작업 추가. 수료증 발급 이력(발급번호)은
 통계·검증용으로 유지하되 개인 식별자는 제거.
 
-### 5. CORS 와일드카드(`*`) 제한
+> **조치됨** — `anonymize_expired_applications(p_retention interval default '1 year')`를
+> 추가했습니다. `anonymized_at` 컬럼으로 재실행에 안전하고, 회차·상태·발급번호는 남겨
+> 사업 실적 통계와 발급 이력을 보존합니다.
+>
+> pg_cron이 **이미 켜져 있으면** 마이그레이션이 매일 실행(UTC 18:00 = KST 03:00)을
+> 등록하고, 꺼져 있으면 실패시키지 않고 안내만 남깁니다 — Supabase에서 pg_cron은
+> 대시보드에서 켜야 하므로 마이그레이션이 그 상태에 좌우되면 안 되기 때문입니다.
+>
+> **남은 것:** Storage에 저장된 수료증 PDF에는 성명이 그대로 남습니다. SQL로는 Storage
+> 실체 파일을 지울 수 없어(`storage.objects`는 메타데이터일 뿐이라 지우면 고아 파일이
+> 남습니다) `pdf_path` 링크만 끊었습니다. 실제 파일 삭제는 Storage API를 호출하는
+> Edge Function이나 스크립트가 필요합니다.
+
+### 5. CORS 와일드카드(`*`) 제한 — **조치 완료**
 
 `_shared/cors.ts`가 모든 origin을 허용합니다. 공개 API이므로 치명적이진 않지만, 봇 방어와
 결합해 배포 origin(GitHub Pages 주소)만 허용하도록 좁히는 것이 좋습니다
 (환경변수 `ALLOWED_ORIGIN`으로 주입, 로컬 개발용 localhost 허용 포함).
+
+> **조치됨** — `ALLOWED_ORIGINS`(쉼표 구분) 시크릿으로 좁힐 수 있게 했습니다.
+> 미설정이면 기존과 동일하게 `*`로 동작하므로 설정하지 않아도 배포가 깨지지 않습니다.
+> 목록에 없는 origin에는 `Access-Control-Allow-Origin`을 아예 붙이지 않고,
+> origin별 응답 차이로 캐시가 섞이지 않도록 `Vary: Origin`을 함께 보냅니다.
+> Deno 테스트 9건으로 접두사 위조(`https://gnu.github.io.evil.example`) 차단까지 검증합니다.
+>
+> **효과에 대한 솔직한 평가:** 이 함수들은 쿠키·세션을 쓰지 않으므로 CORS는 실질적인 보안
+> 경계가 아닙니다. `curl`이나 서버 간 호출은 CORS를 거치지 않으므로 공격자를 막지 못합니다.
+> origin 제한이 막는 것은 "제3자 웹페이지가 방문자의 브라우저·IP로 이 API를 호출하는 것"
+> 정도이며, 실제 남용 방어는 P0-3의 빈도 제한이 담당합니다. 심층 방어로만 이해하세요.
 
 ### 6. PR 단계 CI 부재 — main push 즉시 배포 — **조치 완료**
 
@@ -253,13 +279,14 @@ Next 14.2 / React 18 / zod 3은 당장 문제없지만 유지보수 기한을 �
 | 3 | P1-6 PR CI 워크플로 | 소 | 완료 (브랜치 보호 규칙 설정만 남음) |
 | 4 | P0-3 ① rate limit | 중 | 완료 |
 | 5 | P0-3 ② Turnstile 봇 방어 → ③ 추가 본인확인 | 중 | **다음 우선순위** |
-| 6 | P1-7 단위·E2E 테스트 | 중 | DB 회귀분 완료, 단위·E2E 남음 |
-| 7 | P1-4 개인정보 파기 자동화, P1-5 CORS 제한 | 소 | 미착수 |
-| 8 | P2 리팩터링·회차 관리 UI·알림 자동화 | 중~대 | 미착수 |
+| 6 | P1-4 개인정보 파기 자동화, P1-5 CORS 제한 | 소 | 완료 |
+| 7 | P1-7 프론트엔드 단위·E2E 테스트 | 중 | DB·Edge Function 완료, 프론트 남음 |
+| 8 | 수료증 PDF Storage 파기 (P1-4 잔여) | 소 | 미착수 |
+| 9 | P2 리팩터링·회차 관리 UI·알림 자동화 | 중~대 | 미착수 |
 
 ## 배포 시 유의사항
 
-`0012_public_insert_hardening.sql`·`0013_rate_limit.sql`은 **운영 DB에 적용해야 효력이 생깁니다.**
+`0012`~`0014` 마이그레이션은 **운영 DB에 적용해야 효력이 생깁니다.**
 Supabase CLI(`supabase db push`) 또는 대시보드 SQL Editor에서 실행하세요.
 프론트엔드만 배포하면 취약점은 그대로 남습니다.
 

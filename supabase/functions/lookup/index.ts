@@ -2,7 +2,7 @@
 // applications 테이블은 RLS로 공개 SELECT가 차단되어 있으므로, 이 함수에서만
 // Service Role로 "성명+연락처가 정확히 일치하는 건"만 서버(Deno)에서 필터링하여 반환한다.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders, handleCorsPreflight, jsonResponse } from "../_shared/cors.ts";
+import { corsHeadersFor, handleCorsPreflight, jsonResponse } from "../_shared/cors.ts";
 import { identitySchema, normalizePhone } from "../_shared/identity.ts";
 import { checkRateLimit, RATE_LIMIT_MESSAGE } from "../_shared/rateLimit.ts";
 
@@ -49,7 +49,7 @@ Deno.serve(async (req: Request) => {
   const json = await req.json().catch(() => null);
   const parsed = lookupSchema.safeParse(json);
   if (!parsed.success) {
-    return jsonResponse({ error: "입력값을 확인해 주세요." }, 400);
+    return jsonResponse(req, { error: "입력값을 확인해 주세요." }, 400);
   }
 
   const { name, phone } = parsed.data;
@@ -64,7 +64,7 @@ Deno.serve(async (req: Request) => {
   // 성명+연락처만으로 본인을 확인하므로, 연락처 무차별 대입을 빈도 제한으로 막는다.
   const { allowed } = await checkRateLimit(supabase, req, "lookup", name);
   if (!allowed) {
-    return jsonResponse({ error: RATE_LIMIT_MESSAGE }, 429, { "Retry-After": "600" });
+    return jsonResponse(req, { error: RATE_LIMIT_MESSAGE }, 429, { "Retry-After": "600" });
   }
 
   const { data: applications, error } = await supabase
@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
     .eq("name", name);
 
   if (error) {
-    return jsonResponse({ error: "조회 중 오류가 발생했습니다." }, 500);
+    return jsonResponse(req, { error: "조회 중 오류가 발생했습니다." }, 500);
   }
 
   const matched = ((applications ?? []) as unknown as ApplicationRow[]).filter(
@@ -83,7 +83,7 @@ Deno.serve(async (req: Request) => {
   );
 
   if (matched.length === 0) {
-    return jsonResponse({ results: [] as LookupResultItem[] });
+    return jsonResponse(req, { results: [] as LookupResultItem[] });
   }
 
   const matchedIds = matched.map((row: { id: string }) => row.id);
@@ -133,6 +133,6 @@ Deno.serve(async (req: Request) => {
   results.sort((a, b) => a.round - b.round);
 
   return new Response(JSON.stringify({ results }), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeadersFor(req), "Content-Type": "application/json" },
   });
 });
