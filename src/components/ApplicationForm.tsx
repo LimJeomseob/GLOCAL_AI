@@ -7,7 +7,7 @@ import { applicationSchema } from "@/lib/validation";
 import { TABLES } from "@/lib/db-tables";
 import { FormField, inputBaseClass } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
-import { formatDateRange, formatDateTime } from "@/lib/format";
+import { formatDateRange, formatDateTime, formatPhoneInput } from "@/lib/format";
 
 export interface WorkshopOption {
   id: string;
@@ -289,7 +289,7 @@ export function ApplicationForm({
               value={form.phone}
               autoComplete="tel"
               placeholder="010-1234-5678"
-              onChange={(e) => updateField("phone", e.target.value)}
+              onChange={(e) => updateField("phone", formatPhoneInput(e.target.value))}
             />
           )}
         </FormField>

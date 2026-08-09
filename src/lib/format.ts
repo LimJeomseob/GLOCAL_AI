@@ -74,3 +74,15 @@ export function formatPhone(raw: string): string {
   if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
   return raw ?? "";
 }
+
+/**
+ * 연락처 입력 중 실시간 하이픈 삽입 — 숫자만 남기고 최대 11자리.
+ * 10자리까지는 3-3-4(구형 011-123-4567 대응), 11자리째에 3-4-4로 재배열한다.
+ */
+export function formatPhoneInput(raw: string): string {
+  const d = (raw ?? "").replace(/[^0-9]/g, "").slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 7) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  if (d.length <= 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+}

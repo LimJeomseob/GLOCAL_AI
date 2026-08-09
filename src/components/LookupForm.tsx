@@ -7,7 +7,7 @@ import { FormField, inputBaseClass } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CancelConfirmModal } from "@/components/CancelConfirmModal";
-import { formatDateRange } from "@/lib/format";
+import { formatDateRange, formatPhoneInput } from "@/lib/format";
 import {
   isApplicationStatus,
   type CancelApplicationResponse,
@@ -209,7 +209,7 @@ export function LookupForm() {
               value={form.phone}
               autoComplete="tel"
               placeholder="010-1234-5678"
-              onChange={(e) => updateField("phone", e.target.value)}
+              onChange={(e) => updateField("phone", formatPhoneInput(e.target.value))}
             />
           )}
         </FormField>

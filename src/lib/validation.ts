@@ -1,12 +1,15 @@
 import { z } from "zod";
+import { formatPhone } from "./format";
 
 // 한국 휴대폰 형식: 010-1234-5678, 01012345678, 011-234-5678 등 허용
 const PHONE_REGEX = /^01[0-9]-?\d{3,4}-?\d{4}$/;
 
+// 어떤 형식으로 입력해도 저장은 010-####-#### 한 가지로 통일한다
 export const phoneSchema = z
   .string()
   .trim()
-  .regex(PHONE_REGEX, "휴대폰 번호 형식이 올바르지 않습니다. (예: 010-1234-5678)");
+  .regex(PHONE_REGEX, "휴대폰 번호 형식이 올바르지 않습니다. (예: 010-1234-5678)")
+  .transform((v) => formatPhone(v));
 
 export const emailSchema = z
   .string()

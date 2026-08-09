@@ -6,7 +6,7 @@ import clsx from "clsx";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TABLES } from "@/lib/db-tables";
 import { NOTICE_COLUMNS, type NoticeField } from "@/lib/constants";
-import { formatDateTime, formatDateRange } from "@/lib/format";
+import { formatDateTime, formatDateRange, formatPhone, formatPhoneInput } from "@/lib/format";
 import { exportRowsAsCsv } from "@/lib/csv";
 import { issueCertificatesForApplications } from "@/lib/issueCertificate";
 import { adminApplicationSchema, normalizePhone } from "@/lib/validation";
@@ -265,20 +265,27 @@ export function ApplicantsTable({
     const affiliationKw = columnFilters.affiliation.trim().toLowerCase();
     const idNumberKw = columnFilters.idNumber.trim().toLowerCase();
     const phoneKw = columnFilters.phone.trim().toLowerCase();
+    // 저장된 연락처의 하이픈 유무와 무관하게 검색되도록 숫자만 남겨 비교한다
+    const phoneDigitsKw = normalizePhone(phoneKw);
     const emailKw = columnFilters.email.trim().toLowerCase();
 
     return applications.filter((a) => {
       if (roundFilter !== "전체" && String(a.workshop.round) !== roundFilter) return false;
       if (columnFilters.status !== "전체" && a.status !== columnFilters.status) return false;
       if (keyword) {
-        const haystack = `${a.name} ${a.email} ${a.phone}`.toLowerCase();
+        const haystack = `${a.name} ${a.email} ${a.phone} ${normalizePhone(a.phone)}`.toLowerCase();
         if (!haystack.includes(keyword)) return false;
       }
       if (topicKw && !a.workshop.topic.toLowerCase().includes(topicKw)) return false;
       if (nameKw && !a.name.toLowerCase().includes(nameKw)) return false;
       if (affiliationKw && !a.affiliation.toLowerCase().includes(affiliationKw)) return false;
       if (idNumberKw && !a.id_number.toLowerCase().includes(idNumberKw)) return false;
-      if (phoneKw && !a.phone.toLowerCase().includes(phoneKw)) return false;
+      if (phoneKw) {
+        const matched =
+          a.phone.toLowerCase().includes(phoneKw) ||
+          (phoneDigitsKw !== "" && normalizePhone(a.phone).includes(phoneDigitsKw));
+        if (!matched) return false;
+      }
       if (emailKw && !a.email.toLowerCase().includes(emailKw)) return false;
       if (columnFilters.certIssued !== "전체") {
         const wantIssued = columnFilters.certIssued === "발급완료";
@@ -774,7 +781,7 @@ export function ApplicantsTable({
         { header: "성명", accessor: (a: ApplicationWithWorkshop) => a.name },
         { header: "소속", accessor: (a: ApplicationWithWorkshop) => a.affiliation },
         { header: "교번/직번/학번/생년월일", accessor: (a: ApplicationWithWorkshop) => a.id_number },
-        { header: "연락처", accessor: (a: ApplicationWithWorkshop) => a.phone },
+        { header: "연락처", accessor: (a: ApplicationWithWorkshop) => formatPhone(a.phone) },
         { header: "이메일", accessor: (a: ApplicationWithWorkshop) => a.email },
         { header: "상태", accessor: (a: ApplicationWithWorkshop) => a.status },
         {
@@ -1186,7 +1193,7 @@ export function ApplicantsTable({
                     value={draft.phone}
                     error={draftErrors.phone}
                     disabled={draftSaving}
-                    onChange={(v) => updateDraftField("phone", v)}
+                    onChange={(v) => updateDraftField("phone", formatPhoneInput(v))}
                   />
                   <DraftTextCell
                     label="이메일"
@@ -1300,7 +1307,7 @@ export function ApplicantsTable({
                   </td>
                   <td className="break-keep px-2 py-2 text-slate-700">{a.affiliation}</td>
                   <td className="break-all px-2 py-2 text-slate-700">{a.id_number}</td>
-                  <td className="whitespace-nowrap px-2 py-2 text-slate-700">{a.phone}</td>
+                  <td className="whitespace-nowrap px-2 py-2 text-slate-700">{formatPhone(a.phone)}</td>
                   <td className="break-all px-2 py-2 text-slate-700">{a.email}</td>
                   <td className="px-2 py-2">
                     <div className="flex flex-col gap-2">
