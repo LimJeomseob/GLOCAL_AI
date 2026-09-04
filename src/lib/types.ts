@@ -90,6 +90,18 @@ export interface Certificate {
   issued_channel: "admin" | "public";
 }
 
+/**
+ * certificates + applications + workshops 조인 결과(수료증 발급대장).
+ * 재발급은 번호를 새로 따지 않고 reissue_count만 올리므로, 최종 재발급 시각은 updated_at이다.
+ * application은 FK(not null)라 항상 있어야 하지만, 임베드 실패 시에도 화면이 죽지 않도록 nullable로 둔다.
+ */
+export interface CertificateWithApplication extends Certificate {
+  updated_at: string;
+  application: (Pick<Application, "id" | "name" | "affiliation" | "status"> & {
+    workshop: ApplicationWithWorkshop["workshop"];
+  }) | null;
+}
+
 /** certificate_templates.template — 수료증 서식 PDF를 변환한 JSON(이미지 base64 보존) */
 export interface CertificateTemplateImage {
   key: string;

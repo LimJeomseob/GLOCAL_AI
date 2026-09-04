@@ -7,6 +7,7 @@ import clsx from "clsx";
 const ADMIN_TABS = [
   { href: "/admin/applicants", label: "신청자 관리" },
   { href: "/admin/survey", label: "만족도 설문결과" },
+  { href: "/admin/certificates", label: "수료증 발급대장" },
 ];
 
 export function AdminNav() {
